@@ -1,16 +1,33 @@
+from chunk import Chunk
 from langchain_core.prompts import ChatPromptTemplate
 import uuid
-from langchain.chat_models import ChatOpenAI
+# from langchain_community.chat_models import ChatOpenAI, init_chat_model
+from langchain.chat_models import init_chat_model
+
 import os
 from typing import Optional
-from langchain_core.pydantic_v1 import BaseModel
-from langchain.chains import create_extraction_chain_pydantic
+from pydantic import BaseModel, Field  # 直接使用 pydantic v2
+# from langchain.chains import create_extraction_chain_pydantic
+
 from dotenv import load_dotenv
 
 load_dotenv()
 
 class AgenticChunker:
-    def __init__(self, openai_api_key=None):
+    """
+    一个用于管理和组织文本块的类。
+    能够自动将相关的文本片段（propositions）分组到不同的块（chunks）中，
+    并为每个块生成摘要和标题。
+    """
+    
+    def __init__(self):
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        self.llm = init_chat_model(            
+            model="qwen/qwen-2.5-72b-instruct", 
+            model_provider="openai",
+            api_key="sk_J7l6-K7MQB_9aPomZCuXWXrmxEUF_U91rXvGfRypmj0",
+            base_url="https://api.ppinfra.com/v3/openai"
+        )
         self.chunks = {}
         self.id_truncate_limit = 5
 
@@ -24,13 +41,25 @@ class AgenticChunker:
         if openai_api_key is None:
             raise ValueError("API key is not provided and not found in environment variables")
 
-        self.llm = ChatOpenAI(model='gpt-4-1106-preview', openai_api_key=openai_api_key, temperature=0)
+        # self.llm = ChatOpenAI(model='gpt-4-1106-preview', openai_api_key=openai_api_key, temperature=0)
 
     def add_propositions(self, propositions):
+        """
+        批量添加多个文本片段到chunks中。
+        Args:
+            propositions: 文本片段列表
+        """
         for proposition in propositions:
             self.add_proposition(proposition)
     
     def add_proposition(self, proposition):
+        """
+        添加单个文本片段到合适的chunk中。
+        如果没有合适的chunk，会创建新的chunk。
+        
+        Args:
+            proposition: 要添加的文本片段
+        """
         if self.print_logging:
             print (f"\nAdding: '{proposition}'")
 
@@ -57,6 +86,13 @@ class AgenticChunker:
         
 
     def add_proposition_to_chunk(self, chunk_id, proposition):
+        """
+        将文本片段添加到指定的chunk中，并更新chunk的摘要和标题。
+        
+        Args:
+            chunk_id: chunk的唯一标识符
+            proposition: 要添加的文本片段
+        """
         # Add then
         self.chunks[chunk_id]['propositions'].append(proposition)
 
@@ -67,7 +103,13 @@ class AgenticChunker:
 
     def _update_chunk_summary(self, chunk):
         """
-        If you add a new proposition to a chunk, you may want to update the summary or else they could get stale
+        更新指定chunk的摘要。
+        当chunk中添加了新的文本片段时，会重新生成摘要以保持最新。
+        
+        Args:
+            chunk: 需要更新摘要的chunk
+        Returns:
+            str: 更新后的摘要
         """
         PROMPT = ChatPromptTemplate.from_messages(
             [
@@ -106,7 +148,13 @@ class AgenticChunker:
     
     def _update_chunk_title(self, chunk):
         """
-        If you add a new proposition to a chunk, you may want to update the title or else it can get stale
+        更新指定chunk的标题。
+        当chunk的内容发生变化时，会重新生成更合适的标题。
+        
+        Args:
+            chunk: 需要更新标题的chunk
+        Returns:
+            str: 更新后的标题
         """
         PROMPT = ChatPromptTemplate.from_messages(
             [
@@ -145,6 +193,15 @@ class AgenticChunker:
         return updated_chunk_title
 
     def _get_new_chunk_summary(self, proposition):
+        """
+        为新的chunk生成摘要。
+        基于初始文本片段生成一个概括性的摘要。
+        
+        Args:
+            proposition: 初始文本片段
+        Returns:
+            str: 新生成的摘要
+        """
         PROMPT = ChatPromptTemplate.from_messages(
             [
                 (
@@ -180,6 +237,15 @@ class AgenticChunker:
         return new_chunk_summary
     
     def _get_new_chunk_title(self, summary):
+        """
+        为新的chunk生成标题。
+        基于chunk的摘要生成一个简短的标题。
+        
+        Args:
+            summary: chunk的摘要
+        Returns:
+            str: 新生成的标题
+        """
         PROMPT = ChatPromptTemplate.from_messages(
             [
                 (
@@ -216,6 +282,13 @@ class AgenticChunker:
 
 
     def _create_new_chunk(self, proposition):
+        """
+        创建新的chunk。
+        使用给定的文本片段创建一个新的chunk，包括生成ID、摘要和标题。
+        
+        Args:
+            proposition: 初始文本片段
+        """
         new_chunk_id = str(uuid.uuid4())[:self.id_truncate_limit] # I don't want long ids
         new_chunk_summary = self._get_new_chunk_summary(proposition)
         new_chunk_title = self._get_new_chunk_title(new_chunk_summary)
@@ -232,8 +305,11 @@ class AgenticChunker:
     
     def get_chunk_outline(self):
         """
-        Get a string which represents the chunks you currently have.
-        This will be empty when you first start off
+        获取所有chunks的概览。
+        返回包含所有chunks的ID、名称和摘要的字符串。
+        
+        Returns:
+            str: chunks的概览信息
         """
         chunk_outline = ""
 
@@ -245,6 +321,14 @@ class AgenticChunker:
         return chunk_outline
 
     def _find_relevant_chunk(self, proposition):
+        """
+        查找与给定文本片段最相关的chunk。
+        
+        Args:
+            proposition: 要匹配的文本片段
+        Returns:
+            str or None: 找到的chunk ID，如果没找到则返回None
+        """
         current_chunk_outline = self.get_chunk_outline()
 
         PROMPT = ChatPromptTemplate.from_messages(
@@ -289,13 +373,18 @@ class AgenticChunker:
         # Pydantic data class
         class ChunkID(BaseModel):
             """Extracting the chunk id"""
-            chunk_id: Optional[str]
-            
+            model_config = {
+                "arbitrary_types_allowed": True
+            }
+            chunk_id: Optional[str] = Field(default=None)
+        llm = self.llm    
         # Extraction to catch-all LLM responses. This is a bandaid
-        extraction_chain = create_extraction_chain_pydantic(pydantic_schema=ChunkID, llm=self.llm)
-        extraction_found = extraction_chain.run(chunk_found)
+        # extraction_chain = create_extraction_chain_pydantic(pydantic_schema=ChunkID, llm=self.llm)
+        extraction_chain = llm.with_structured_output(ChunkID)
+
+        extraction_found = extraction_chain.invoke(chunk_found)
         if extraction_found:
-            chunk_found = extraction_found[0].chunk_id
+            chunk_found = extraction_found.chunk_id
 
         # If you got a response that isn't the chunk id limit, chances are it's a bad response or it found nothing
         # So return nothing
@@ -306,9 +395,12 @@ class AgenticChunker:
     
     def get_chunks(self, get_type='dict'):
         """
-        This function returns the chunks in the format specified by the 'get_type' parameter.
-        If 'get_type' is 'dict', it returns the chunks as a dictionary.
-        If 'get_type' is 'list_of_strings', it returns the chunks as a list of strings, where each string is a proposition in the chunk.
+        获取所有chunks的内容。
+        
+        Args:
+            get_type: 返回格式，'dict'返回字典格式，'list_of_strings'返回字符串列表
+        Returns:
+            dict or list: chunks的内容
         """
         if get_type == 'dict':
             return self.chunks

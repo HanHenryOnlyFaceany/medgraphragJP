@@ -7,19 +7,30 @@ import uuid
 from summerize import process_chunks
 import openai
 
+"""
+系统提示词，用于生成基于图数据的医疗信息回答
+"""
 sys_prompt_one = """
 Please answer the question using insights supported by provided graph-based data relevant to medical information.
 """
 
+"""
+系统提示词，用于根据参考信息修改和完善回答
+"""
 sys_prompt_two = """
 Modify the response to the question using the provided references. Include precise citations relevant to your answer. You may use multiple citations simultaneously, denoting each with the reference index number. For example, cite the first and third documents as [1][3]. If the references do not pertain to the response, simply provide a concise answer to the original question.
 """
 
 # Add your own OpenAI API key
-openai_api_key = os.getenv("OPENAI_API_KEY")
+openai_api_key = os.getenv("PPIO_API_KEY")
+openai_api_url = os.getenv("PPIO_API_BASE")
 
-def get_embedding(text, mod = "text-embedding-3-small"):
-    client = OpenAI(api_key = os.getenv("OPENAI_API_KEY"))
+
+def get_embedding(text, mod = "baai/bge-m3"):
+    client = OpenAI(
+        api_key = "sk_J7l6-K7MQB_9aPomZCuXWXrmxEUF_U91rXvGfRypmj0",
+        base_url = "https://api.ppinfra.com/v3/openai",
+    )
 
     response = client.embeddings.create(
         input=text,
@@ -29,39 +40,77 @@ def get_embedding(text, mod = "text-embedding-3-small"):
     return response.data[0].embedding
 
 def fetch_texts(n4j):
-    # Fetch the text for each node
+    """
+    从Neo4j数据库中获取所有节点的文本内容
+    Args:
+        n4j: Neo4j数据库连接对象
+    Returns:
+        list: 包含所有节点ID的列表
+    """
     query = "MATCH (n) RETURN n.id AS id"
     return n4j.query(query)
 
 def add_embeddings(n4j, node_id, embedding):
-    # Upload embeddings to Neo4j
+    """
+    将嵌入向量添加到Neo4j节点中
+    Args:
+        n4j: Neo4j数据库连接对象
+        node_id: 节点ID
+        embedding: 嵌入向量
+    """
     query = "MATCH (n) WHERE n.id = $node_id SET n.embedding = $embedding"
     n4j.query(query, params = {"node_id":node_id, "embedding":embedding})
 
 def add_nodes_emb(n4j):
+    """
+    为数据库中的所有节点添加嵌入向量
+    Args:
+        n4j: Neo4j数据库连接对象
+    """
     nodes = fetch_texts(n4j)
-
     for node in nodes:
-        # Calculate embedding for each node's text
-        if node['id']:  # Ensure there is text to process
+        if node['id']:
             embedding = get_embedding(node['id'])
-            # Store embedding back in the node
             add_embeddings(n4j, node['id'], embedding)
 
 def add_ge_emb(graph_element):
+    """
+    为图元素中的所有节点添加嵌入向量
+    Args:
+        graph_element: 图元素对象
+    Returns:
+        object: 更新后的图元素对象
+    """
     for node in graph_element.nodes:
         emb = get_embedding(node.id)
         node.properties['embedding'] = emb
     return graph_element
 
 def add_gid(graph_element, gid):
+    """
+    为图元素中的所有节点和关系添加组ID
+    Args:
+        graph_element: 图元素对象
+        gid: 组ID
+    Returns:
+        object: 更新后的图元素对象
+    """
     for node in graph_element.nodes:
         node.properties['gid'] = gid
     for rel in graph_element.relationships:
         rel.properties['gid'] = gid
     return graph_element
 
-def add_sum(n4j,content,gid):
+def add_sum(n4j, content, gid):
+    """
+    为内容创建摘要节点并建立关系
+    Args:
+        n4j: Neo4j数据库连接对象
+        content: 需要总结的内容
+        gid: 组ID
+    Returns:
+        object: 创建的摘要节点
+    """
     sum = process_chunks(content)
     creat_sum_query = """
         CREATE (s:Summary {content: $sum, gid: $gid})
@@ -76,10 +125,17 @@ def add_sum(n4j,content,gid):
         RETURN s, n
         """
     n4j.query(link_sum_query, {'gid': gid})
-
     return s
 
 def call_llm(sys, user):
+    """
+    调用大语言模型生成回答
+    Args:
+        sys: 系统提示词
+        user: 用户输入
+    Returns:
+        str: 模型生成的回答
+    """
     response = openai.chat.completions.create(
         model="gpt-4-1106-preview",
         messages=[
@@ -94,15 +150,27 @@ def call_llm(sys, user):
     return response.choices[0].message.content
 
 def find_index_of_largest(nums):
-    # Sorting the list while keeping track of the original indexes
+    """
+    找出列表中最大值的索引
+    Args:
+        nums: 数字列表
+    Returns:
+        int: 最大值的索引
+    """
     sorted_with_index = sorted((num, index) for index, num in enumerate(nums))
-    
-    # Extracting the original index of the largest element
     largest_original_index = sorted_with_index[-1][1]
-    
     return largest_original_index
 
 def get_response(n4j, gid, query):
+    """
+    根据查询生成综合回答
+    Args:
+        n4j: Neo4j数据库连接对象
+        gid: 组ID
+        query: 查询问题
+    Returns:
+        str: 生成的回答
+    """
     selfcont = ret_context(n4j, gid)
     linkcont = link_context(n4j, gid)
     user_one = "the question is: " + query + "the provided information is:" +  "".join(selfcont)
@@ -112,6 +180,14 @@ def get_response(n4j, gid, query):
     return res
 
 def link_context(n4j, gid):
+    """
+    获取节点间的引用关系上下文
+    Args:
+        n4j: Neo4j数据库连接对象
+        gid: 组ID
+    Returns:
+        list: 引用关系的描述列表
+    """
     cont = []
     retrieve_query = """
         // Match all 'n' nodes with a specific gid but not of the "Summary" type
@@ -135,12 +211,19 @@ def link_context(n4j, gid):
     """
     res = n4j.query(retrieve_query, {'gid': gid})
     for r in res:
-        # Expand each set of connections into separate entries with n and m
         for ind, connection in enumerate(r["Connections"]):
             cont.append("Reference " + str(ind) + ": " + r["NodeId1"] + "has the reference that" + r['Mid'] + connection['RelationType'] + connection['Oid'])
     return cont
 
 def ret_context(n4j, gid):
+    """
+    获取同组内节点间的关系上下文
+    Args:
+        n4j: Neo4j数据库连接对象
+        gid: 组ID
+    Returns:
+        list: 节点关系的描述列表
+    """
     cont = []
     ret_query = """
     // Match all nodes with a specific gid but not of type "Summary" and collect them
@@ -152,7 +235,7 @@ def ret_context(n4j, gid):
     UNWIND nodes AS n
     UNWIND nodes AS m
     MATCH (n)-[r]-(m)
-    WHERE n.gid = m.gid AND id(n) < id(m) AND NOT n:Summary AND NOT m:Summary // Ensure each pair is processed once and exclude "Summary" nodes in relationships
+    WHERE n.gid = m.gid AND id(n) < id(m) AND NOT n:Summary AND NOT m:Summary
     WITH n, m, TYPE(r) AS relType
 
     // Return node IDs and relationship types in structured format
@@ -164,7 +247,14 @@ def ret_context(n4j, gid):
     return cont
 
 def merge_similar_nodes(n4j, gid):
-    # Define your merge query here. Adjust labels and properties according to your graph schema
+    """
+    合并相似的节点
+    Args:
+        n4j: Neo4j数据库连接对象
+        gid: 组ID（可选）
+    Returns:
+        object: 合并操作的结果
+    """
     if gid:
         merge_query = """
             WITH 0.5 AS threshold
@@ -181,7 +271,6 @@ def merge_similar_nodes(n4j, gid):
         result = n4j.query(merge_query, {'gid': gid})
     else:
         merge_query = """
-            // Define a threshold for cosine similarity
             WITH 0.5 AS threshold
             MATCH (n), (m)
             WHERE NOT n:Summary AND NOT m:Summary AND n<>m AND apoc.coll.sort(labels(n)) = apoc.coll.sort(labels(m))
@@ -197,6 +286,15 @@ def merge_similar_nodes(n4j, gid):
     return result
 
 def ref_link(n4j, gid1, gid2):
+    """
+    建立两个图之间的引用关系
+    Args:
+        n4j: Neo4j数据库连接对象
+        gid1: 第一个图的组ID
+        gid2: 第二个图的组ID
+    Returns:
+        object: 创建的引用关系
+    """
     trinity_query = """
         // Match nodes from Graph A
         MATCH (a)
@@ -226,16 +324,17 @@ def ref_link(n4j, gid1, gid2):
 
         // Return results
         RETURN n, m
-"""
+    """
     result = n4j.query(trinity_query, {'gid1': gid1, 'gid2': gid2})
     return result
 
-
 def str_uuid():
-    # Generate a random UUID
+    """
+    生成UUID字符串
+    Returns:
+        str: 生成的UUID字符串
+    """
     generated_uuid = uuid.uuid4()
-
-    # Convert UUID to a string
     return str(generated_uuid)
 
 
