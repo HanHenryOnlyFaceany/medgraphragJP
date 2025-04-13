@@ -81,12 +81,18 @@ def split_into_chunks(text, tokens=500):
     Returns:
         list: 分割后的文本块列表
     """
-    encoding = tiktoken.encoding_for_model('cl100k_base')
-    words = encoding.encode(text)
-    chunks = []
-    for i in range(0, len(words), tokens):
-        chunks.append(' '.join(encoding.decode(words[i:i + tokens])))
-    return chunks   
+    try:
+        # 直接使用 tiktoken.get_encoding 获取编码器
+        encoding = tiktoken.get_encoding("cl100k_base")
+        words = encoding.encode(text)
+        chunks = []
+        for i in range(0, len(words), tokens):
+            chunks.append(' '.join(encoding.decode(words[i:i + tokens])))
+        return chunks
+    except Exception as e:
+        print(f"分块过程出错: {str(e)}")
+        # 如果出错，返回原文本作为单个块
+        return [text]
 
 def process_chunks(content):
     """
