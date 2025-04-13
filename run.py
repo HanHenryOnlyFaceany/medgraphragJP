@@ -10,7 +10,8 @@ from creat_graph import creat_metagraph
 from summerize import process_chunks
 from retrieve import seq_ret
 from utils import *
-from nano_graphrag import GraphRAG, QueryParam
+# from nano_graphrag import GraphRAG, QueryParam
+
 
 # %% set up parser
 parser = argparse.ArgumentParser()
@@ -24,8 +25,8 @@ parser.add_argument('-trinity_gid2', type=str)
 parser.add_argument('-ingraphmerge',  action='store_true')
 parser.add_argument('-crossgraphmerge', action='store_true')
 parser.add_argument('-dataset', type=str, default='mimic_ex')
-parser.add_argument('-data_path', type=str, default='./dataset_test')
-parser.add_argument('-test_data_path', type=str, default='./dataset_ex/report_0.txt')
+parser.add_argument('-data_path', type=str, default='./dataset_cn')
+parser.add_argument('-test_data_path', type=str, default='./dataset_cn/report_0.txt')
 parser.add_argument('query', nargs='?', type=str, help="Query to run in simple mode")
 args = parser.parse_args()
 
@@ -48,17 +49,15 @@ if args.simple:
 
 else:
 
-    url=os.getenv("NEO4J_URI")
+    url=os.getenv("NEO4J_URL")
     username=os.getenv("NEO4J_USERNAME")
     password=os.getenv("NEO4J_PASSWORD")
-    breakpoint()
-    # Set Neo4j instance
     n4j = Neo4jGraph(
         url=url,
         username=username,             # Default username
         password=password     # Replace 'yourpassword' with your actual password
     )
-    breakpoint()
+    # 
     if args.construct_graph: 
         if args.dataset == 'mimic_ex':
             files = [file for file in os.listdir(args.data_path) if os.path.isfile(os.path.join(args.data_path, file))]
@@ -68,7 +67,7 @@ else:
                 file_path = os.path.join(args.data_path, file_name)
                 content = load_high(file_path)
                 gid = str_uuid()
-                breakpoint()
+                
                 n4j = creat_metagraph(args, content, gid, n4j)
 
                 if args.trinity:
