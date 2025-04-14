@@ -70,8 +70,16 @@ else:
                 
                 n4j = creat_metagraph(args, content, gid, n4j)
 
+                """
+                初始逻辑：
+                    对应的连接关系需要我们在图构建的时候就定好，多个gid即trinity_gid1/2/3/4
+                    所以我们在构建的时候就需要做好底层的连接关系
+                改进逻辑：
+                    在这个地方可以加一个结构化存储，再通过mcp的形式，匹配对应的关系
+                """
                 if args.trinity:
-                    link_context(n4j, args.trinity_gid1)
+                    # link_context(n4j, args.trinity_gid1)
+                    ref_link(n4j,gid,args.trinity_gid1)
             if args.crossgraphmerge:
                 merge_similar_nodes(n4j, None)
 
