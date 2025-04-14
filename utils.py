@@ -181,7 +181,7 @@ def get_response(n4j, gid, query):
 
 def link_context(n4j, gid):
     """
-    获取节点间的引用关系上下文
+    获取跨图的引用关系上下文
     Args:
         n4j: Neo4j数据库连接对象
         gid: 组ID
