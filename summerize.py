@@ -117,7 +117,7 @@ def process_chunks(content):
 
 if __name__ == "__main__":
     # 测试代码
-    content = " sth you wanna test"
+    content = " 这位76岁的患者的血压是否有异常？"
     process_chunks(content)
 
 # 处理时间可能较长，取决于输入数据的大小
