@@ -6,10 +6,12 @@ from langchain.chat_models import init_chat_model
 
 import os
 from typing import Optional
+from openai import timeout
 from pydantic import BaseModel, Field  # 直接使用 pydantic v2
 # from langchain.chains import create_extraction_chain_pydantic
-
+from langchain_core.output_parsers import PydanticOutputParser
 from dotenv import load_dotenv
+import httpx
 
 load_dotenv()
 
@@ -23,10 +25,11 @@ class AgenticChunker:
     def __init__(self):
         openai_api_key = os.getenv("OPENAI_API_KEY")
         self.llm = init_chat_model(            
-            model="qwen/qwen-2.5-72b-instruct", 
+            model="qwen2.5-32b-instruct", 
             model_provider="openai",
-            api_key="sk_J7l6-K7MQB_9aPomZCuXWXrmxEUF_U91rXvGfRypmj0",
-            base_url="https://api.ppinfra.com/v3/openai"
+            api_key="sk-cJBVEQFNNxphN4Et84F5A9C0083348C6873443A27a18C3De",
+            base_url="http://ai.medical-deep.com:20240/v1",
+            timeout=30
         )
         self.chunks = {}
         self.id_truncate_limit = 5
@@ -330,6 +333,18 @@ class AgenticChunker:
             str or None: 找到的chunk ID，如果没找到则返回None
         """
         current_chunk_outline = self.get_chunk_outline()
+        
+        
+        # Pydantic data class
+        class ChunkID(BaseModel):
+            """Extracting the chunk id"""
+            model_config = {
+                "arbitrary_types_allowed": True
+            }
+            chunk_id: Optional[str] = Field(default=None)
+        
+        # 设置解析器
+        parser = PydanticOutputParser(pydantic_object=ChunkID)
 
         PROMPT = ChatPromptTemplate.from_messages(
             [
@@ -355,40 +370,51 @@ class AgenticChunker:
                             - Chunk ID: 93833k
                             - Chunk Name: Food Greg likes
                             - Chunk Summary: Lists of the food and dishes that Greg likes
-                    Output: 93833k
+                    Output: {{
+                        "chunk_id": "93833k"
+                    }}
+                    {format_instructions}
                     """,
                 ),
                 ("user", "Current Chunks:\n--Start of current chunks--\n{current_chunk_outline}\n--End of current chunks--"),
                 ("user", "Determine if the following statement should belong to one of the chunks outlined:\n{proposition}"),
             ]
-        )
+        ).partial(
+        format_instructions=parser.get_format_instructions()
+    )
+        
 
-        runnable = PROMPT | self.llm
+        runnable = PROMPT | self.llm | parser
 
-        chunk_found = runnable.invoke({
-            "proposition": proposition,
-            "current_chunk_outline": current_chunk_outline
-        }).content
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                chunk_found = runnable.invoke({
+                    "proposition": proposition,
+                    "current_chunk_outline": current_chunk_outline
+                })
+                break  # 成功则跳出循环
+            except (httpx.RequestError, socket.timeout, TimeoutError) as e:
+                print(f"网络异常，第{attempt+1}次重试: {e}")
+                time.sleep(2)
+                if attempt == max_retries - 1:
+                    print("多次重试后仍然失败，跳过该操作。")
+                    return None
+            except Exception as e:
+                print(f"LLM调用异常: {e}")
+                return None
 
-        # Pydantic data class
-        class ChunkID(BaseModel):
-            """Extracting the chunk id"""
-            model_config = {
-                "arbitrary_types_allowed": True
-            }
-            chunk_id: Optional[str] = Field(default=None)
-        llm = self.llm    
+
+        # llm = self.llm    
         # Extraction to catch-all LLM responses. This is a bandaid
         # extraction_chain = create_extraction_chain_pydantic(pydantic_schema=ChunkID, llm=self.llm)
-        extraction_chain = llm.with_structured_output(ChunkID)
+        # extraction_chain = llm.with_structured_output(ChunkID)
 
-        extraction_found = extraction_chain.invoke(chunk_found)
-        if extraction_found:
-            chunk_found = extraction_found.chunk_id
+        # extraction_found = extraction_chain.invoke(chunk_found)
+        if chunk_found:
+            chunk_found = chunk_found.chunk_id
 
-        # If you got a response that isn't the chunk id limit, chances are it's a bad response or it found nothing
-        # So return nothing
-        if len(chunk_found) != self.id_truncate_limit:
+        if not chunk_found or len(chunk_found) != self.id_truncate_limit:
             return None
 
         return chunk_found
