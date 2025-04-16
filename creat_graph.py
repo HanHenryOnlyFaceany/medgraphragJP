@@ -19,6 +19,21 @@ def creat_metagraph(args, content, gid, n4j):
     
     os.environ["PPIO_API_KEY"] = "sk_J7l6-K7MQB_9aPomZCuXWXrmxEUF_U91rXvGfRypmj0"
     os.environ["PPIO_API_BASE"] = "https://api.ppinfra.com/v3/openai"
+
+    # OLLAMA_API_KEY = os.environ.get("OLLAMA_API_KEY")
+    # OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL")
+
+    # OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL")
+
+    # # # # Set up model
+    # PPIO_DP_V_3_turbo = ModelFactory.create(
+    #     model_platform=ModelPlatformType.OLLAMA,
+    #     model_type=ModelType.QWEN_2_5_32B,
+    #     api_key=OLLAMA_API_KEY,
+    #     url=OLLAMA_BASE_URL,
+    #     model_config_dict={"temperature": 0.4},
+    # )
+
     
     # Set instance
     print("正在初始化 PPIO 模型...")
