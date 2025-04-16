@@ -127,27 +127,56 @@ def add_sum(n4j, content, gid):
     n4j.query(link_sum_query, {'gid': gid})
     return s
 
-def call_llm(sys, user):
+def call_llm(sys, user, model_config=None):
     """
-    调用大语言模型生成回答
+    调用大语言模型生成回答，支持多种模型提供商
     Args:
         sys: 系统提示词
         user: 用户输入
+        model_config: 模型配置字典，包含provider、model等信息
     Returns:
         str: 模型生成的回答
     """
-    response = openai.chat.completions.create(
-        model="gpt-4-1106-preview",
-        messages=[
-            {"role": "system", "content": sys},
-            {"role": "user", "content": f" {user}"},
-        ],
-        max_tokens=500,
-        n=1,
-        stop=None,
-        temperature=0.5,
-    )
-    return response.choices[0].message.content
+    # 默认配置
+    config = {
+        "provider": "openai",
+        "model": "qwen/qwen-2.5-72b-instruct", 
+        "max_tokens": 500,
+        "temperature": 0.5,
+        "api_key": "sk_J7l6-K7MQB_9aPomZCuXWXrmxEUF_U91rXvGfRypmj0",
+        "base_url": "https://api.ppinfra.com/v3/openai"
+    }
+    
+    # 更新配置
+    if model_config:
+        config.update(model_config)
+    
+    # 构建消息
+    messages = [
+        {"role": "system", "content": sys},
+        {"role": "user", "content": f" {user}"},
+    ]
+    
+    # 根据提供商选择不同的实现
+    if config["provider"] == "openai":
+        client = OpenAI(
+            api_key=config["api_key"],
+            base_url=config["base_url"]
+        )
+        response = client.chat.completions.create(
+            model=config["model"],
+            messages=messages,
+            max_tokens=config["max_tokens"],
+            temperature=config["temperature"]
+        )
+        return response.choices[0].message.content
+    
+    # 可以在这里添加其他提供商的实现
+    # elif config["provider"] == "其他提供商":
+    #     ...
+    
+    else:
+        raise ValueError(f"不支持的提供商: {config['provider']}")
 
 def find_index_of_largest(nums):
     """
@@ -168,15 +197,18 @@ def get_response(n4j, gid, query):
         n4j: Neo4j数据库连接对象
         gid: 组ID
         query: 查询问题
+        content: 可选的医疗索引内容
     Returns:
         str: 生成的回答
     """
+
     selfcont = ret_context(n4j, gid)
+    selfsum = selfsum_context(n4j, gid)
     linkcont = link_context(n4j, gid)
-    user_one = "the question is: " + query + "the provided information is:" +  "".join(selfcont)
-    res = call_llm(sys_prompt_one,user_one)
-    user_two = "the question is: " + query + "the last response of it is:" +  res + "the references are: " +  "".join(linkcont)
-    res = call_llm(sys_prompt_two,user_two)
+    user_one = "the question is: " + query + "the provided information is:" +  "".join(selfcont) + "the medical indexs are: " + selfsum
+    res = call_llm(sys_prompt_one, user_one)
+    user_two = "the question is: " + query + "the last response of it is:" + res + "the references are: " + "".join(linkcont)
+    res = call_llm(sys_prompt_two, user_two)
     return res
 
 def link_context(n4j, gid):
@@ -246,6 +278,41 @@ def ret_context(n4j, gid):
         cont.append(r['NodeId1'] + r['relType'] + r['NodeId2'])
     return cont
 
+def selfsum_context(n4j, gid):
+    """
+    获取医学指标结构上下文
+    Args:
+        n4j: Neo4j数据库连接对象
+        gid: 组ID
+    Returns:
+        list: 节点关系的描述列表
+    """
+    cont = []
+    query = """
+    MATCH (s:Summary)
+    WHERE s.gid = $gid
+    RETURN s.content as content
+    """
+    content = n4j.query(query, {"gid": gid})
+        # 如果提供了content，将其转换为字符串
+    if content:
+        if isinstance(content, dict):
+            cont = str(content)
+        elif isinstance(content, list):
+            cont = "".join(str(item) for item in content)
+        else:
+            cont = str(content)
+    return cont
+    
+
+
+
+
+
+    
+
+        
+
 def merge_similar_nodes(n4j, gid):
     """
     合并相似的节点
@@ -287,7 +354,7 @@ def merge_similar_nodes(n4j, gid):
 
 def ref_link(n4j, gid1, gid2):
     """
-    建立两个图之间的引用关系
+    建立两个图之间的引用关系(余弦相似度)
     Args:
         n4j: Neo4j数据库连接对象
         gid1: 第一个图的组ID
