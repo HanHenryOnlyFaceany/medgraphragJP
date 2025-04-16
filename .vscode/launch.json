@@ -27,6 +27,18 @@
                 "-construct_graph",
             ],
             "justMyCode": false
+        },
+        {
+            "name": "检索输出回答",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/run.py",
+            "console": "integratedTerminal",
+            "args": [
+                "-dataset", "mimic_ex",
+                "-data_path", "./dataset_cn/mimic_ex",
+                "-inference",
+            ]
         }
     ]
 }
