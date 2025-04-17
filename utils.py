@@ -26,10 +26,10 @@ openai_api_key = os.getenv("PPIO_API_KEY")
 openai_api_url = os.getenv("PPIO_API_BASE")
 
 
-def get_embedding(text, mod = "baai/bge-m3"):
+def get_embedding(text, mod = "m3e-base"):
     client = OpenAI(
-        api_key = "sk_J7l6-K7MQB_9aPomZCuXWXrmxEUF_U91rXvGfRypmj0",
-        base_url = "https://api.ppinfra.com/v3/openai",
+        api_key = "sk-cJBVEQFNNxphN4Et84F5A9C0083348C6873443A27a18C3De",
+        base_url = "http://ai.medical-deep.com:20240/v1",
     )
 
     response = client.embeddings.create(
@@ -394,5 +394,31 @@ def str_uuid():
     """
     generated_uuid = uuid.uuid4()
     return str(generated_uuid)
+
+def check_node_exists(n4j, node_id):
+    """
+    检查节点是否已存在于数据库中
+    Args:
+        n4j: Neo4j数据库连接对象
+        node_id: 节点ID
+    Returns:
+        bool: 节点是否存在
+    """
+    query = "MATCH (n) WHERE n.id = $node_id RETURN count(n) as count"
+    result = n4j.query(query, params={"node_id": node_id})
+    return result[0]["count"] > 0
+
+def get_existing_nodes_by_gid(n4j, gid):
+    """
+    获取指定gid的所有节点ID
+    Args:
+        n4j: Neo4j数据库连接对象
+        gid: 组ID
+    Returns:
+        list: 节点ID列表
+    """
+    query = "MATCH (n) WHERE n.gid = $gid RETURN n.id as id"
+    result = n4j.query(query, params={"gid": gid})
+    return [record["id"] for record in result if record["id"]]
 
 
