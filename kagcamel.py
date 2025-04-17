@@ -1,7 +1,7 @@
 import time
 from camel.models import ModelFactory
 from camel.types import ModelPlatformType, ModelType
-from camel.configs import MistralConfig, OllamaConfig
+from camel.configs import MistralConfig, OllamaConfig, ChatGPTConfig
 from camel.configs import PPIOConfig
 
 from camel.loaders import UnstructuredIO
@@ -25,18 +25,22 @@ url=os.getenv("NEO4J_URL")
 username=os.getenv("NEO4J_USERNAME")
 password=os.getenv("NEO4J_PASSWORD")
 
+# os.environ["http_proxy"] = "http://127.0.0.1:11434"
+# os.environ["https_proxy"] = "http://127.0.0.1:11434"
+
 # Set Neo4j instance
 n4j = Neo4jGraph(
     url=url,
     username=username,             # Default username
     password=password     # Replace 'yourpassword' with your actual password
 )
-
 # # # Set up model
 PPIO_DP_V_3_turbo = ModelFactory.create(
-    model_platform=ModelPlatformType.PPIO,
-    model_type=ModelType.PPIO_QWEN_2_5_72B,
-    model_config_dict=PPIOConfig(temperature=0.2).as_dict(),
+    model_platform=ModelPlatformType.OPENAI_COMPATIBLE_MODEL,
+    model_type=os.environ.get("OLLAMA_MODEL"),
+    api_key=os.environ.get("OLLAMA_API_KEY"),
+    url="http://ai.medical-deep.com:20240/v1",
+    model_config_dict=ChatGPTConfig(temperature=0.2).as_dict(),
 )
 
 # Set up model
