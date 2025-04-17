@@ -303,15 +303,6 @@ def selfsum_context(n4j, gid):
         else:
             cont = str(content)
     return cont
-    
-
-
-
-
-
-    
-
-        
 
 def merge_similar_nodes(n4j, gid):
     """
