@@ -5,6 +5,9 @@ import uuid
 from langchain.chat_models import init_chat_model
 
 import os
+import json
+import socket
+import time
 from typing import Optional
 from openai import timeout
 from pydantic import BaseModel, Field  # 直接使用 pydantic v2
@@ -56,13 +59,6 @@ class AgenticChunker:
             self.add_proposition(proposition)
     
     def add_proposition(self, proposition):
-        """
-        添加单个文本片段到合适的chunk中。
-        如果没有合适的chunk，会创建新的chunk。
-        
-        Args:
-            proposition: 要添加的文本片段
-        """
         if self.print_logging:
             print (f"\nAdding: '{proposition}'")
 
@@ -75,16 +71,15 @@ class AgenticChunker:
 
         chunk_id = self._find_relevant_chunk(proposition)
 
-        # If a chunk was found then add the proposition to it
-        if chunk_id:
+        # 添加检查确保chunk_id存在
+        if chunk_id and chunk_id in self.chunks:
             if self.print_logging:
                 print (f"Chunk Found ({self.chunks[chunk_id]['chunk_id']}), adding to: {self.chunks[chunk_id]['title']}")
             self.add_proposition_to_chunk(chunk_id, proposition)
             return
         else:
             if self.print_logging:
-                print ("No chunks found")
-            # If a chunk wasn't found, then create a new one
+                print ("No valid chunks found")
             self._create_new_chunk(proposition)
         
 
@@ -419,7 +414,8 @@ class AgenticChunker:
 
         return chunk_found
     
-    def get_chunks(self, get_type='dict'):
+    def get_chunks(self, get_type='dict', chunks_gid=None):
+        ""
         """
         获取所有chunks的内容。
         
@@ -429,12 +425,30 @@ class AgenticChunker:
             dict or list: chunks的内容
         """
         if get_type == 'dict':
+            self.save_done_chunks()
             return self.chunks
         if get_type == 'list_of_strings':
             chunks = []
             for chunk_id, chunk in self.chunks.items():
                 chunks.append(" ".join([x for x in chunk['propositions']]))
+
+            self.save_done_chunks(chunks_gid)
             return chunks
+
+    def save_done_chunks(self, gid):
+        # 保存分块内容到临时文件，以便在程序中断后恢复
+        chunks = self.chunks
+        chunks_cache_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "checkpoints", f"chunks_{gid}.json")
+        os.makedirs(os.path.dirname(chunks_cache_path), exist_ok=True)
+        
+        # 只有在文件不存在时才保存分块内容
+        if not os.path.exists(chunks_cache_path):
+            try:
+                with open(chunks_cache_path, "w", encoding='utf-8') as f:
+                    json.dump(chunks, f, indent=4, ensure_ascii=False)  # 添加 indent 参数进行格式化
+                print(f"分块内容已缓存: {chunks_cache_path}")
+            except Exception as e:
+                print(f"缓存分块内容失败: {e}")
     
     def pretty_print_chunks(self):
         print (f"\nYou have {len(self.chunks)} chunks\n")

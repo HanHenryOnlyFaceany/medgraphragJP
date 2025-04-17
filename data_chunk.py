@@ -37,7 +37,7 @@ def get_propositions(text, runnable, extraction_chain):
 - 使用 AgenticChunker 进行最终处理
 - 返回处理后的文本块
 """
-def run_chunk(essay):
+def run_chunk(essay, gid):
 
     obj = hub.pull("wfh/proposal-indexing")
 
@@ -129,7 +129,7 @@ def run_chunk(essay):
     ac = AgenticChunker()
     ac.add_propositions(essay_propositions)
     ac.pretty_print_chunks()
-    chunks = ac.get_chunks(get_type='list_of_strings')
+    chunks = ac.get_chunks(get_type='list_of_strings', chunks_gid=gid)
 
     return chunks
-    print(chunks)
+    # print(chunks)

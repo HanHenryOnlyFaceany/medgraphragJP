@@ -66,7 +66,8 @@ else:
             for file_name in files:
                 file_path = os.path.join(args.data_path, file_name)
                 content = load_high(file_path)
-                gid = str_uuid()
+                # gid = str_uuid()
+                gid = "0de4b485-50fb-436c-997a-d3bf246fbd56"
                 
                 n4j = creat_metagraph(args, content, gid, n4j)
 
