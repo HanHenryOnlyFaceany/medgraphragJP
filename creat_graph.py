@@ -11,7 +11,7 @@ from utils import *
 import time
 from camel.models import ModelFactory
 from camel.types import ModelPlatformType, ModelType
-from camel.configs import PPIOConfig, OllamaConfig
+from camel.configs import PPIOConfig, OllamaConfig, ChatGPTConfig
 
 
 def creat_metagraph(args, content, gid, n4j):
@@ -26,22 +26,26 @@ def creat_metagraph(args, content, gid, n4j):
     # OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL")
 
     # # # # Set up model
-    # PPIO_DP_V_3_turbo = ModelFactory.create(
-    #     model_platform=ModelPlatformType.OLLAMA,
-    #     model_type=ModelType.QWEN_2_5_32B,
-    #     api_key=OLLAMA_API_KEY,
-    #     url=OLLAMA_BASE_URL,
-    #     model_config_dict={"temperature": 0.4},
-    # )
+
 
     
     # Set instance
     print("正在初始化 PPIO 模型...")
+    # PPIO_DP_V_3_turbo = ModelFactory.create(
+    #     model_platform=ModelPlatformType.PPIO,
+    #     model_type=ModelType.PPIO_QWEN_2_5_72B,
+    #     model_config_dict=PPIOConfig(temperature=0.2).as_dict(),
+    # )
+
     PPIO_DP_V_3_turbo = ModelFactory.create(
-        model_platform=ModelPlatformType.PPIO,
-        model_type=ModelType.PPIO_QWEN_2_5_72B,
-        model_config_dict=PPIOConfig(temperature=0.2).as_dict(),
+        model_platform=ModelPlatformType.OPENAI_COMPATIBLE_MODEL,
+        model_type=os.environ.get("OLLAMA_MODEL"),
+        api_key=os.environ.get("OLLAMA_API_KEY"),
+        url="http://ai.medical-deep.com:20240/v1",
+        model_config_dict=ChatGPTConfig(temperature=0.2).as_dict(),
     )
+
+
     print("PPIO 模型初始化完成")
 
     uio = UnstructuredIO()
