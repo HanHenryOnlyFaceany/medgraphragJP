@@ -154,6 +154,7 @@ def creat_metagraph(args, content, gid, n4j):
     
     # 检查是否存在检查点
     checkpoint = load_checkpoint(gid)
+    processed_chunks = set()
     chunks_cache_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "checkpoints", f"chunks_{gid}.json")
     if checkpoint and checkpoint["gid"] == gid:
         start_index = checkpoint["current_index"]

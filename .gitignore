@@ -8,3 +8,7 @@ app.sh
 .env
 /env
 __pycache__/
+dataset_cn/.DS_Store
+checkpoints/chunks_0de4b485-50fb-436c-997a-d3bf246fbd56.json
+dataset_cn/HITCPubMedKg_2/HITCPubMed-KGv2_0.csv
+dataset_cn/HITCPubMedKg_2/HITCPubMed-KGv2_0_mini.csv
