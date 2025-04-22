@@ -1,4 +1,24 @@
+# 忽略所有PDF文件
+*.PDF
+*.pdf
+
+# 忽略特定的PDF文件
+882406142104.PDF
+
+# 忽略由PDF转换生成的markdown和txt文件
+*.md
 *.txt
+
+# 保留其他常见的忽略规则
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv
+env/
+venv/
+ENV/
+.DS_Store
 dataset
 dataset_paper
 dataset_test

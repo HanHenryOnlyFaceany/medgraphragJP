@@ -24,8 +24,8 @@ parser.add_argument('-trinity_gid1', type=str)
 parser.add_argument('-trinity_gid2', type=str)
 parser.add_argument('-ingraphmerge',  action='store_true')
 parser.add_argument('-crossgraphmerge', action='store_true')
-parser.add_argument('-dataset', type=str, default='mimic_ex')
-parser.add_argument('-data_path', type=str, default='./dataset_cn')
+parser.add_argument('-dataset', type=str, default='diabetes')
+parser.add_argument('-data_path', type=str, default='./txt/Medical Guidelines')
 parser.add_argument('-test_data_path', type=str, default='./dataset_cn/report_0.txt')
 parser.add_argument('query', nargs='?', type=str, help="Query to run in simple mode")
 args = parser.parse_args()
@@ -59,15 +59,16 @@ else:
     )
     # 
     if args.construct_graph: 
-        if args.dataset == 'mimic_ex':
+        if args.dataset == 'diabetes':
             files = [file for file in os.listdir(args.data_path) if os.path.isfile(os.path.join(args.data_path, file))]
             
             # Read and print the contents of each file
             for file_name in files:
+                print(file_name)
                 file_path = os.path.join(args.data_path, file_name)
                 content = load_high(file_path)
                 # gid = str_uuid()
-                gid = "0de4b485-50fb-436c-997a-d3bf246fbd56"
+                gid = "f83b4c4c-cb83-48c3-9fad-3fa32df65041"
                 
                 n4j = creat_metagraph(args, content, gid, n4j)
 
