@@ -13,7 +13,7 @@ class Neo4jConnection:
 
     @staticmethod
     def _delete_all(tx):
-        tx.run("MATCH (n) DETACH DELETE n")
+        tx.run("MATCH (n {gid: '44a8569a-fec5-4686-bf21-7b34dc1f8140'}) DETACH DELETE n")
 
 # Example usage
 conn = Neo4jConnection("bolt://localhost:7687", "neo4j", "zcx1264521752")

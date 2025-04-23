@@ -5,11 +5,11 @@ from camel.agents import KnowledgeGraphAgent
 from camel.loaders import UnstructuredIO
 from dataloader import load_high
 import argparse
-from data_chunk import run_chunk
-from creat_graph import creat_metagraph
-from summerize import process_chunks
-from retrieve import seq_ret
-from utils import *
+from src.data_chunk import run_chunk
+from src.creat_graph import creat_metagraph
+from src.summerize import process_chunks
+from src.retrieve import seq_ret
+from src.utils import *
 # from nano_graphrag import GraphRAG, QueryParam
 
 
