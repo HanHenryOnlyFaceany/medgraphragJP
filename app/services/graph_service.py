@@ -161,8 +161,9 @@ class GraphService:
         if ingraphmerge:
             merge_similar_nodes(self.n4j, gid)
         
+        content = " ".join([x['content'] for x in paragraph_data])
         # 生成内容摘要
-        # add_sum(self.n4j, content, gid)
+        add_sum(self.n4j, content, gid)
 
         add_doc_sum(self.n4j, title, abstract, keyword, gid)
         
