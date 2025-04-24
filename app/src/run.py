@@ -9,7 +9,7 @@ from src.data_chunk import run_chunk
 from src.creat_graph import creat_metagraph
 from src.summerize import process_chunks
 from src.retrieve import seq_ret
-from src.utils import *
+from src.utils.util import *
 # from nano_graphrag import GraphRAG, QueryParam
 
 
