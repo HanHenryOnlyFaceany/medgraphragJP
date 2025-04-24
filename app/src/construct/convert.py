@@ -21,14 +21,14 @@ def sanitize_string(input_str, max_length=255):
     return input_str
 
 
-def generate_cypher_statements(data):
+def generate_cypher_statements(data, gid=None):
     """
     Generates Cypher query statements based on the provided JSON data.
     """
     cypher_statements = []
     parsed_data = json.loads(data)
 
-    def create_statement(triple):
+    def create_statement(triple, gid=None):
         head = triple.get("head")
         head_type = triple.get("head_type")
         relation = triple.get("relation")
@@ -46,34 +46,34 @@ def generate_cypher_statements(data):
         statement = ""
         if head:
             if head_type_safe:
-                statement += f'MERGE (a:{head_type_safe} {{name: "{head}"}}) '
+                statement += f'MERGE (a:{head_type_safe} {{name: "{head}", gid: "{gid}"}}) '
             else:
-                statement += f'MERGE (a:UNTYPED {{name: "{head}"}}) '
+                statement += f'MERGE (a:UNTYPED {{name: "{head}", gid: "{gid}"}}) '
         if tail:
             if tail_type_safe:
-                statement += f'MERGE (b:{tail_type_safe} {{name: "{tail}"}}) '
+                statement += f'MERGE (b:{tail_type_safe} {{name: "{tail}", gid: "{gid}"}}) '
             else:
-                statement += f'MERGE (b:UNTYPED {{name: "{tail}"}}) '
+                statement += f'MERGE (b:UNTYPED {{name: "{tail}", gid: "{gid}"}}) '
         if relation:
             if head and tail: # Only create relation if head and tail exist.
                 if relation_type_safe:
-                    statement += f'MERGE (a)-[:{relation_type_safe} {{name: "{relation}"}}]->(b);'
+                    statement += f'MERGE (a)-[:{relation_type_safe} {{name: "{relation}", gid: "{gid}"}}]->(b);'
                 else:
-                    statement += f'MERGE (a)-[:UNTYPED {{name: "{relation}"}}]->(b);'
+                    statement += f'MERGE (a)-[:UNTYPED {{name: "{relation}", gid: "{gid}"}}]->(b);'
             else:
                 statement += ';' if statement != "" else ''
         else:
             if relation_type_safe: # if relation is not provided, create relation by `relation_type`.
-                statement += f'MERGE (a)-[:{relation_type_safe} {{name: "{relation_type_safe}"}}]->(b);'
+                statement += f'MERGE (a)-[:{relation_type_safe} {{name: "{relation_type_safe}", gid: "{gid}"}}]->(b);'
             else:
                 statement += ';' if statement != "" else ''
         return statement
 
     if "triple_list" in parsed_data:
         for triple in parsed_data["triple_list"]:
-            cypher_statements.append(create_statement(triple))
+            cypher_statements.append(create_statement(triple, gid))
     else:
-        cypher_statements.append(create_statement(parsed_data))
+        cypher_statements.append(create_statement(parsed_data, gid))
 
     return cypher_statements
 
