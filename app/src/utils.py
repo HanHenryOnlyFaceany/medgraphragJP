@@ -172,15 +172,15 @@ def add_doc_sum(n4j, title, abstract, keyword, gid):
         object: 创建的摘要节点
     """
     creat_sum_query = """
-        CREATE (s:Summary {title: $title, abstract: $abstract, keyword: $keyword, gid: $gid})
+        CREATE (s:Doc {title: $title, abstract: $abstract, keyword: $keyword, gid: $gid})
         RETURN s
         """
     s = n4j.query(creat_sum_query, {'title': title, 'abstract': abstract, 'keyword': keyword, 'gid': gid})
 
     link_sum_query = """
-        MATCH (s:Summary {gid: $gid}), (n)
-        WHERE n.gid = s.gid AND NOT n:Summary
-        CREATE (s)-[:SUMMARIZES]->(n)
+        MATCH (s:Doc {gid: $gid}), (n)
+        WHERE n.gid = s.gid AND n:Summary
+        CREATE (s)-[:basic_information]->(n)
         RETURN s, n
         """
     n4j.query(link_sum_query, {'gid': gid})
@@ -263,9 +263,10 @@ def get_response(n4j, gid, query):
     """
 
     selfcont = ret_context(n4j, gid)
-    selfsum = selfsum_context(n4j, gid)
+    # selfsum = selfsum_context(n4j, gid)
     linkcont = link_context(n4j, gid)
-    user_one = "the question is: " + query + "the provided information is:" +  "".join(selfcont) + "the medical indexs are: " + selfsum
+    # user_one = "the question is: " + query + "the provided information is:" +  "".join(selfcont) + "the medical indexs are: " + selfsum
+    user_one = "the question is: " + query + "the provided information is:" +  "".join(selfcont)
     res = call_llm(sys_prompt_one, user_one)
     user_two = "the question is: " + query + "the last response of it is:" + res + "the references are: " + "".join(linkcont)
     res = call_llm(sys_prompt_two, user_two)
