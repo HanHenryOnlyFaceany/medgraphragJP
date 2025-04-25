@@ -106,10 +106,12 @@ def construct_kg(construct, extraction_result, gid=None, chunk_id=None):
     myurl = construct['url']
     myusername = construct['username']
     mypassword = construct['password']
-    print(f"Construct KG in your {construct['database']} now...")
-    cypher_statements = generate_cypher_statements(extraction_result, gid, chunk_id)
-    execute_cypher_statements(uri=myurl, user=myusername, password=mypassword, cypher_statements=cypher_statements)
-
+    try:
+        print(f"Construct KG in your {construct['database']} now...")
+        cypher_statements = generate_cypher_statements(extraction_result, gid, chunk_id)
+        execute_cypher_statements(uri=myurl, user=myusername, password=mypassword, cypher_statements=cypher_statements)
+    except Exception as e:
+        print(f"Error constructing KG: {e}")
 
 def add_nodes_emb_tr(session, gid):
     """
