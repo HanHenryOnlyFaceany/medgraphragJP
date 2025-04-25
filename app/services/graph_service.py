@@ -1,15 +1,26 @@
 import os
 import uuid
 from camel.storages import Neo4jGraph
-from camel.agents import KnowledgeGraphAgent
-from camel.loaders import UnstructuredIO
-from camel.models import ModelFactory
-from camel.types import ModelPlatformType
-from camel.configs import ChatGPTConfig
+# from camel.agents import KnowledgeGraphAgent
+# from camel.loaders import UnstructuredIO
+# from camel.models import ModelFactory
+# from camel.types import ModelPlatformType
+# from camel.configs import ChatGPTConfig
 from unstructured.documents.elements import Title
 from core.config import settings
+from src.utils.util import *
 from src.utils import *
 from src.data_chunk import *
+from src.models import *
+from src.pipeline import *
+import argparse
+import os
+from src.modules import *
+import nltk
+nltk.download('punkt')
+
+# model configuration
+
 
 
 class GraphService:
@@ -19,18 +30,15 @@ class GraphService:
             username=settings.NEO4J_USERNAME,
             password=settings.NEO4J_PASSWORD
         )
-        
-        # 初始化模型
-        self.model = ModelFactory.create(
-            model_platform=ModelPlatformType.OPENAI_COMPATIBLE_MODEL,
-            model_type=os.environ.get("OLLAMA_MODEL"),
-            api_key=os.environ.get("OLLAMA_API_KEY"),
-            url="http://ai.medical-deep.com:20240/v1",
-            model_config_dict=ChatGPTConfig(temperature=0.2).as_dict(),
-        )
-        
-        self.uio = UnstructuredIO()
-        self.kg_agent = KnowledgeGraphAgent(model=self.model)
+
+        self.model = LocalServer(model_name_or_path="qwen2.5-32b-instruct")
+
+        # Load configuration
+        config = load_extraction_config("/Users/hanhenry99/jianpei/medgraphragJP/app/src/examples/config/Triple2KG.yaml")
+        # Model config
+        self.pipeline = Pipeline(self.model)
+        self.extraction_config = config['extraction']
+        self.construct_config = config['construct']
     
     def create_graph(self, file_path, grained_chunk=True, ingraphmerge=True):
         """创建知识图谱
@@ -125,34 +133,46 @@ class GraphService:
         # 处理内容块
         if grained_chunk:
             content_chunks = run_docs_chunk(paragraph_data, gid)
-        else:
-            content_chunks = {paragraph_data}
-
 
         for key, value in content_chunks.items():
             try:
                 para = " ".join([x for x in value['propositions']])
-                # 创建元素
-                element_example = self.uio.create_element_from_text(text=para)
-                
-                # 生成知识图谱元素
-                graph_elements = self.kg_agent.run(element_example, parse_graph_elements=True)
-                
-                # 添加嵌入向量
-                graph_elements = add_ge_emb(graph_elements)
-                
+
+                frontend_res = self.pipeline.get_extract_result(
+                    task=self.extraction_config['task'], 
+                    instruction=self.extraction_config['instruction'], 
+                    text=para, 
+                    output_schema=self.extraction_config['output_schema'], 
+                    constraint=self.extraction_config['constraint'], 
+                    truth=self.extraction_config['truth'], 
+                    mode=self.extraction_config['mode'], 
+                    update_case=self.extraction_config['update_case'], 
+                    show_trajectory=self.extraction_config['show_trajectory'],
+                    construct=self.construct_config, 
+                )
+
                 # 添加组ID
-                graph_elements = add_gid(graph_elements, gid)
+                # graph_elements = add_gid(graph_elements, gid)
+
+                extraction_result = json.dumps(frontend_res, indent=2)
+
+                chunk_id = value['chunk_id']
                 
-                # 添加content
-                graph_elements = add_content(graph_elements, value['content'])
+                # 构造知识图谱并添加gid
+                construct_kg(self.construct_config, extraction_result, gid, chunk_id)
+
+                # 添加嵌入向量
+                add_all_embeddings(self.construct_config, gid)
+
+                # 添加chunk节点
+                graph_elements = add_chunk(self.n4j, gid, value['chunk_id'], value['content'])
 
                 # 添加sub
-                graph_elements = add_section(graph_elements, value['section_title'])
+                graph_elements = add_section(self.n4j, gid, value['chunk_id'], value['section_title'])
 
                 
                 # 将图元素添加到数据库
-                self.n4j.add_graph_elements(graph_elements=[graph_elements])
+                # self.n4j.add_graph_elements(graph_elements=[graph_elements])
                 
             except Exception as e:
                 print(f"处理块 {i} 时出错: {e}")
@@ -165,7 +185,8 @@ class GraphService:
         # 生成内容摘要
         add_sum(self.n4j, content, gid)
 
-        add_doc_sum(self.n4j, title, abstract, keyword, gid)
+        # 添加文档元数据节点并与summary以及所有chunk节点建立关系
+        add_meta_sum(self.n4j, title, abstract, keyword, gid)
         
         # 获取节点和关系数量
         # node_count = self._get_node_count(gid)
