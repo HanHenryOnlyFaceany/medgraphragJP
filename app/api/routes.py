@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from api.models import (
-    GraphCreationRequest, QueryRequest, RefLinkRequest, CSVImportRequest,
+    GraphCreationRequest, GraphJsonRequest, QueryRequest, RefLinkRequest, CSVImportRequest,
     GraphResponse, QueryResponse, RefLinkResponse, CSVImportResponse
 )
 from services.graph_service import GraphService
@@ -24,11 +24,11 @@ async def build(request: GraphCreationRequest):
         raise HTTPException(status_code=500, detail=f"创建知识图谱失败: {str(e)}")
 
 @router.post("/graph/build_doc")
-async def build_doc():
+async def build_doc(request: GraphJsonRequest):
     """创建知识图谱"""
     try:
         gs = GraphService()
-        result = gs.build_docs_graph("/Users/hanhenry99/jianpei/medgraphragJP/data/dataset_json/medical_guidelines/diabetes/2型糖尿病分级诊疗与质量管理专家共识_1745206962.5506403_structured.json")
+        result = gs.build_docs_graph(request.file_path)
         return GraphResponse(**result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"创建知识图谱失败: {str(e)}")
