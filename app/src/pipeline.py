@@ -1,8 +1,8 @@
 from typing import Literal
-from models import *
-from utils import *
-from modules import *
-from construct import *
+from src.models import *
+from src.utils import *
+from src.modules import *
+from src.construct import *
 
 
 class Pipeline:
