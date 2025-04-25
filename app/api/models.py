@@ -7,6 +7,9 @@ class GraphCreationRequest(BaseModel):
     grained_chunk: bool = Field(True, description="是否使用细粒度分块")
     ingraphmerge: bool = Field(True, description="是否合并相似节点")
 
+class GraphJsonRequest(BaseModel):
+    file_path: str = Field(..., description="要处理的Json文件路径")
+
 class QueryRequest(BaseModel):
     query: str = Field(..., description="查询问题")
     # gid 字段不再需要，因为在 query_service.py 中已经通过 seq_ret 获取
