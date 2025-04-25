@@ -37,6 +37,14 @@ def generate_cypher_statements(data, gid=None, chunk_id=None):
         tail = triple.get("tail")
         tail_type = triple.get("tail_type")
 
+            # 转义字符串中的引号
+        if head:
+            head = head.replace('"', '\\"')
+        if relation:
+            relation = relation.replace('"', '\\"')
+        if tail:
+            tail = tail.replace('"', '\\"')
+
         # head_safe = sanitize_string(head) if head else None
         head_type_safe = sanitize_string(head_type) if head_type else None
         # relation_safe = sanitize_string(relation) if relation else None
@@ -64,7 +72,7 @@ def generate_cypher_statements(data, gid=None, chunk_id=None):
             else:
                 statement += ';' if statement != "" else ''
         else:
-            if relation_type_safe: # if relation is not provided, create relation by `relation_type`.
+            if relation_type_safe and head and tail: # 确保只有在head和tail都存在时才创建关系
                 statement += f'MERGE (a)-[:{relation_type_safe} {{name: "{relation_type_safe}", gid: "{gid}", chunk_id:"{chunk_id}"}}]->(b);'
             else:
                 statement += ';' if statement != "" else ''
