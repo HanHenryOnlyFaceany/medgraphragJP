@@ -2,10 +2,10 @@ import json
 import os
 # import torch
 import numpy as np
-from utils import *
+from src.utils import *
 from sentence_transformers import SentenceTransformer
 # from rapidfuzz import process
-from models import *
+from src.models import *
 import copy
 
 import warnings

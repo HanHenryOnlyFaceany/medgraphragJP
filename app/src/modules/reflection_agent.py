@@ -1,5 +1,5 @@
-from models import *
-from utils import *
+from src.models import *
+from src.utils import *
 from .extraction_agent import ExtractionAgent
 from .knowledge_base.case_repository import CaseRepositoryHandler
 class ReflectionGenerator:

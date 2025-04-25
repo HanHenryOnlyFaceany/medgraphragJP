@@ -1,5 +1,5 @@
 from typing import Literal
-from models import *
+from src.models import *
 from .process import *
 # predefined processing logic for routine extraction tasks
 TaskType = Literal["NER", "RE", "EE", "Base"]

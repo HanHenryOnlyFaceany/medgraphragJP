@@ -1,5 +1,5 @@
-from models import *
-from utils import *
+from src.models import *
+from src.utils import *
 from .knowledge_base import schema_repository
 from langchain_core.output_parsers import JsonOutputParser
 
