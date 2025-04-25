@@ -86,7 +86,6 @@ class Pipeline:
                            update_case: bool = False,
                            show_trajectory: bool = False,
                            isgui: bool = False,
-                           iskg: bool = False,
                            ):
         """
         信息抽取主入口方法。
@@ -146,14 +145,6 @@ class Pipeline:
         extraction_result = json.dumps(data.pred, indent=2)
         print("Extraction Result: \n", extraction_result)
 
-        # construct KG
-        if iskg:
-            myurl = construct['url']
-            myusername = construct['username']
-            mypassword = construct['password']
-            print(f"Construct KG in your {construct['database']} now...")
-            cypher_statements = generate_cypher_statements(extraction_result)
-            execute_cypher_statements(uri=myurl, user=myusername, password=mypassword, cypher_statements=cypher_statements)
 
         frontend_res = data.pred #
 
@@ -168,7 +159,9 @@ class Pipeline:
             self.case_repo.update_case(data)
 
         # return result
-        result = data.pred
-        trajectory = data.get_result_trajectory()
+        # result = data.pred
+        # trajectory = data.get_result_trajectory()
 
-        return result, trajectory, frontend_schema, frontend_res
+        # return result, trajectory, frontend_schema, frontend_res
+        return frontend_res
+
