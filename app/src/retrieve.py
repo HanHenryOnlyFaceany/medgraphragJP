@@ -1,4 +1,4 @@
-from utils.util import *
+from src.utils.util import *
 
 sys_p = """
 Assess the similarity of the two provided summaries and return a rating from these options: 'very similar', 'similar', 'general', 'not similar', 'totally not similar'. Provide only the rating.
