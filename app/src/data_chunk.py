@@ -206,7 +206,7 @@ def run_docs_chunk(essay, gid):
         _create_new_chunk(chunks, item)
         # essay_propositions.extend(propositions)
         logger.info(f"Done with {i}")
-    print(chunks)
+    # print(chunks)
     return chunks
     
 
