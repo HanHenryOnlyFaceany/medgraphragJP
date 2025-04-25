@@ -60,18 +60,22 @@ def run_chunk(essay, gid):
             指南:
             1. 将复合句分解为简单句，尽可能保持原文的表述方式
             2. 对于包含附加描述信息的命名实体，将这些信息分离为独立的陈述句
-            3. 通过添加必要的修饰词或替换代词（如"它"、"他"、"她"、"他们"、"这个"、"那个"）来使句子去上下文化
-            4. 输出格式必须是包含sentences字段的JSON对象
+            3. 完全消除指代词，不要使用"它"、"他"、"她"、"他们"、"这个"、"那个"等代词，而是重复使用具体的名词
+            4. 使用标题中的主题词作为句子的主语，确保每个句子都有明确的主语
+            5. 如果标题中包含"理论"、"方法"、"治疗"等关键词，请在相关句子中明确指出这是一种理论、方法或治疗手段
+            6. 对于医学专业术语，保留其完整表述，不要简化或使用代词替代
+            7. 输出格式必须是包含sentences字段的JSON对象
 
             输入示列："1678年，医学教授乔治·弗兰克·冯·弗兰克瑙（Georg Franck von Franckenau）在德国西南部记录了复活节野兔（Osterhase）的最早证据，但直到18世纪，德国其他地区都知道它的存在。"
 
             输出示例: {{
                 "sentences": [
-                    "1678年，Georg Franck von Franckenau在德国西南部首次记录了复活节兔子的最早证据。",
+                    "1678年，医学教授Georg Franck von Franckenau在德国西南部首次记录了复活节兔子的最早证据。",
                     "Georg Franck von Franckenau是一位医学教授。",
-                    "直到18世纪，复活节兔子的证据在德国其他地区仍然不为人知。"
-        ]
-}}
+                    "复活节兔子理论直到18世纪才在德国其他地区被人们知晓。",
+                    "复活节兔子理论与解释是由Georg Franck von Franckenau首次提出的。"
+                ]
+            }}
 
 {format_instructions}
             """),
@@ -161,18 +165,39 @@ def run_docs_chunk(essay, gid):
             指南:
             1. 将复合句分解为简单句，尽可能保持原文的表述方式
             2. 对于包含附加描述信息的命名实体，将这些信息分离为独立的陈述句
-            3. 通过添加必要的修饰词或替换代词（如"它"、"他"、"她"、"他们"、"这个"、"那个"）来使句子去上下文化
-            4. 输出格式必须是包含sentences字段的JSON对象
+            3. 完全消除指代词，不要使用"它"、"他"、"她"、"他们"、"这个"、"那个"等代词，而是重复使用具体的名词
+            4. 使用标题中的主题词作为句子的主语，确保每个句子都有明确的主语
+            5. 如果标题中包含"理论"、"方法"、"治疗"、"管理"、"诊断"等关键词，请在相关句子中明确指出这是一种理论、方法、治疗手段、管理策略或诊断方法
+            6. 对于医学专业术语，保留其完整表述，不要简化或使用代词替代
+            7. 对于医学指南中的建议或推荐，明确指出这是指南的建议，而非一般性陈述
+            8. 输出格式必须是包含sentences字段的JSON对象
 
-            输入示列："1678年，医学教授乔治·弗兰克·冯·弗兰克瑙（Georg Franck von Franckenau）在德国西南部记录了复活节野兔（Osterhase）的最早证据，但直到18世纪，德国其他地区都知道它的存在。"
+            医学示例输入："Title：二、糖尿病肾病的诊断与治疗。content：早期糖尿病肾病通常无症状，它的诊断主要依靠尿微量白蛋白和肾小球滤过率的检测。当它进展到临床期，患者可能出现水肿、高血压和肾功能下降。治疗上，应控制血糖、血压，并使用ACEI或ARB类药物减少蛋白尿。"
+
+            医学示例输出: {{
+                "sentences": [
+                    "早期糖尿病肾病通常无症状。",
+                    "糖尿病肾病的诊断主要依靠尿微量白蛋白和肾小球滤过率的检测。",
+                    "当糖尿病肾病进展到临床期时，患者可能出现水肿。",
+                    "当糖尿病肾病进展到临床期时，患者可能出现高血压。",
+                    "当糖尿病肾病进展到临床期时，患者可能出现肾功能下降。",
+                    "糖尿病肾病的治疗方法包括控制血糖。",
+                    "糖尿病肾病的治疗方法包括控制血压。",
+                    "糖尿病肾病的治疗方法包括使用ACEI类药物减少蛋白尿。",
+                    "糖尿病肾病的治疗方法包括使用ARB类药物减少蛋白尿。"
+                ]
+            }}
+
+            输入示列："Title：一、理论与解释，与复活节兔子的关系。content：1678年，医学教授乔治·弗兰克·冯·弗兰克瑙（Georg Franck von Franckenau）在德国西南部记录了复活节野兔（Osterhase）的最早证据，但直到18世纪，德国其他地区都知道它的存在。"
 
             输出示例: {{
                 "sentences": [
-                    "1678年，Georg Franck von Franckenau在德国西南部首次记录了复活节兔子的最早证据。",
+                    "1678年，医学教授Georg Franck von Franckenau在德国西南部首次记录了复活节兔子的最早证据。",
                     "Georg Franck von Franckenau是一位医学教授。",
-                    "直到18世纪，复活节兔子的证据在德国其他地区仍然不为人知。"
-        ]
-}}
+                    "复活节兔子理论直到18世纪才在德国其他地区被人们知晓。",
+                    "复活节兔子理论与解释是由Georg Franck von Franckenau首次提出的。"
+                ]
+            }}
 
 {format_instructions}
             """),
@@ -192,44 +217,86 @@ def run_docs_chunk(essay, gid):
 
     chunks = {}
     """
-    每段提取关键句子
+    每段提取关键句子，使用多线程并行处理
     """
-    for i, item in enumerate(essay):
+    from concurrent.futures import ThreadPoolExecutor
+    import threading
+    
+    # 创建线程锁，用于保护chunks字典的并发访问
+    chunks_lock = threading.Lock()
+    
+    def process_item(item_tuple):
+        i, item = item_tuple
         para = item['content']
-        propositions = get_propositions(para, runnable, extraction_chain)
+        title = item['section_title']
+        # content = title:title + content:content
+        content = 'title:' + title + ' content:' + para
+        propositions = get_propositions(content, runnable, extraction_chain)
         # 新增
-        item['propositions'] = propositions
-        """
-        - append() 会把整个对象作为一个元素添加到列表
-        - extend() 会把可迭代对象中的元素逐个展开添加到列表
-        """
-        _create_new_chunk(chunks, item)
-        # essay_propositions.extend(propositions)
-        logger.info(f"Done with {i}")
-    # print(chunks)
+        item_copy = item.copy()  # 创建副本避免修改原始数据
+        item_copy['propositions'] = propositions
+        
+        # 使用线程锁保护共享资源
+        with chunks_lock:
+            new_chunk = _create_new_chunk_mt(chunks, item_copy, len(chunks))
+            logger.info(f"Done with {i}")
+        return new_chunk
+    
+    # 定义一个新的创建chunk函数，返回创建的chunk而不是直接修改全局变量
+    def _create_new_chunk_mt(chunks_dict, item, index):
+        new_chunk_id = str(uuid.uuid4())[:5]  # 生成短UUID
+        new_chunk = {
+            'chunk_id': new_chunk_id,
+            'content': item.get('content'),
+            'propositions': item.get('propositions'),
+            'section_title': item.get('section_title'),
+            'chunk_index': index
+        }
+        chunks_dict[new_chunk_id] = new_chunk
+        logger.info(f"Created new chunk with ID: {new_chunk_id}")
+        return new_chunk
+    
+    # 确定合适的线程数量，通常为CPU核心数的2-4倍
+    max_workers = min(32, (os.cpu_count() or 4) * 2)
+    
+    # 添加日志记录
+    logger.info(f"Starting parallel processing with {max_workers} workers for {len(essay)} items")
+    
+    # 添加异常处理的包装函数
+    def process_item_safe(item_tuple):
+        try:
+            return process_item(item_tuple)
+        except Exception as e:
+            logger.error(f"Error processing item {item_tuple[0]}: {str(e)}")
+            # 返回一个带有错误信息的占位结果
+            i, item = item_tuple
+            item_copy = item.copy()
+            item_copy['propositions'] = [f"处理错误: {str(e)}"]
+            return item_copy
+    
+    # 检查essay是否为空
+    if not essay:
+        logger.warning("Essay is empty, no items to process")
+        return chunks
+    
+    # 使用ThreadPoolExecutor并行处理所有项目，添加异常处理
+    try:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # 将索引和项目打包在一起传递给处理函数，使用安全的处理函数
+            results = list(executor.map(process_item_safe, enumerate(essay)))
+            logger.info(f"Successfully processed {len(results)} items")
+    except Exception as e:
+        logger.error(f"Error in thread pool execution: {str(e)}")
+        # 如果线程池执行失败，回退到顺序处理
+        logger.info("Falling back to sequential processing")
+        results = []
+        for item_tuple in enumerate(essay):
+            try:
+                result = process_item(item_tuple)
+                results.append(result)
+            except Exception as e:
+                logger.error(f"Error in sequential processing for item {item_tuple[0]}: {str(e)}")
+    
+    logger.info(f"Processed {len(results)} items with {len(chunks)} chunks")
     return chunks
-    
-
-
-def _create_new_chunk(chunks, item):
-    """
-    创建新的chunk。
-    使用给定的文本片段创建一个新的chunk，包括生成ID、摘要和标题。
-    
-    Args:
-        proposition: 初始文本片段
-    """
-    new_chunk_id = str(uuid.uuid4())[:5] # I don't want long ids
-    new_chunk_content = item.get('content')
-    new_chunk_proposition = item.get('propositions')
-    new_chunk_section_title = item.get('section_title')
-
-    chunks[new_chunk_id] = {
-        'chunk_id' : new_chunk_id,
-        'content' : new_chunk_content,
-        'propositions': new_chunk_proposition,
-        'section_title' : new_chunk_section_title,
-        'chunk_index' : len(chunks)
-    }
-    logger.info(f"Created new chunk with ID: {new_chunk_id}")
         
