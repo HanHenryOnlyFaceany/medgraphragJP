@@ -124,7 +124,7 @@ class GraphService:
         abstract = [item["content"] for item in data if item.get("type") == "ABSTRACT"]
         keyword = [item["content"] for item in data if item.get("type") == "KEYWORDS"]
 
-        paragraph_data = [item for item in data if item.get("type") == "PARAGRAPH"]
+        paragraph_data = [item for item in data if item.get("type") in ["PARAGRAPH", "TABLE"]]
 
 
         # 生成唯一的组ID
@@ -134,9 +134,9 @@ class GraphService:
         if grained_chunk:
             content_chunks = run_docs_chunk(paragraph_data, gid)
 
-        for key, value in content_chunks.items():
+        for key, chunk in content_chunks.items():
             try:
-                para = " ".join([x for x in value['propositions']])
+                para = " ".join([x for x in chunk['propositions']])
 
                 frontend_res = self.pipeline.get_extract_result(
                     task=self.extraction_config['task'], 
@@ -156,7 +156,7 @@ class GraphService:
 
                 extraction_result = json.dumps(frontend_res, indent=2)
 
-                chunk_id = value['chunk_id']
+                chunk_id = chunk['chunk_id']
                 
                 # 构造知识图谱并添加gid和chunk_id
                 construct_kg(self.construct_config, extraction_result, gid, chunk_id)
@@ -165,10 +165,10 @@ class GraphService:
                 add_all_embeddings(self.construct_config, gid)
 
                 # 添加chunk节点
-                add_chunk(self.n4j, gid, value['chunk_id'], value['content'])
+                add_chunk(self.n4j, gid, chunk['chunk_id'], chunk['content'])
 
                 # 添加sub
-                add_section(self.n4j, gid, value['chunk_id'], value['section_title'])
+                add_section(self.n4j, gid, chunk['chunk_id'], chunk['section_title'])
 
                 
                 # 将图元素添加到数据库
