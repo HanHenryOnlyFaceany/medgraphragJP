@@ -158,17 +158,17 @@ class GraphService:
 
                 chunk_id = value['chunk_id']
                 
-                # 构造知识图谱并添加gid
+                # 构造知识图谱并添加gid和chunk_id
                 construct_kg(self.construct_config, extraction_result, gid, chunk_id)
 
                 # 添加嵌入向量
                 add_all_embeddings(self.construct_config, gid)
 
                 # 添加chunk节点
-                graph_elements = add_chunk(self.n4j, gid, value['chunk_id'], value['content'])
+                add_chunk(self.n4j, gid, value['chunk_id'], value['content'])
 
                 # 添加sub
-                graph_elements = add_section(self.n4j, gid, value['chunk_id'], value['section_title'])
+                add_section(self.n4j, gid, value['chunk_id'], value['section_title'])
 
                 
                 # 将图元素添加到数据库
