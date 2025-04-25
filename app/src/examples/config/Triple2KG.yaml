@@ -10,7 +10,7 @@ extraction:
   task: Triple  # task type, chosen from Base, NER, RE, EE. Now newly added task 'Triple'.
   use_file: true # whether to use a file for the input text. Default set to false.
   file_path: ./data/input_files/Artificial_Intelligence_Wikipedia.txt #  # path to the input file. No need if use_file is set to false.
-  constraint: [["Disease", "Drug", "Food", "Check", "Department", "Producer", "Symptom", "Cure"]] # Specified entity or relation types for Triple Extraction task. You can write 3 lists for subject, relation and object types. Or you can write 2 lists for entity and relation types. Or you can write 1 list for entity type only.
+  constraint: [["Disease", "Drug", "Food", "Check", "Department", "Producer", "Symptom", "Cure", "Population", "HumanBodyPart", "SurgicalOperation","SpecialMedicalFood","MedicalInsuranceReimbursementPolicy","MedicalEquipment","Doctor","Hospital","Vaccine","MedicalAdvice","ComprehensiveService","MedicalTerminology","Indicator","Others"]] # Specified entity or relation types for Triple Extraction task. You can write 3 lists for subject, relation and object types. Or you can write 2 lists for entity and relation types. Or you can write 1 list for entity type only.
   update_case: false # whether to update the case repository. Default set to false.
   show_trajectory: false # whether to display the extracted intermediate steps
 
