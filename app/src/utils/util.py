@@ -6,6 +6,7 @@ from camel.storages import Neo4jGraph
 import uuid
 from src.summerize import process_chunks
 import json
+from src.construct import *
 
 def load_json(file_path):
     with open(file_path, "r", encoding="utf-8") as f:
@@ -65,6 +66,17 @@ def add_embeddings(n4j, node_id, embedding):
     query = "MATCH (n) WHERE n.id = $node_id SET n.embedding = $embedding"
     n4j.query(query, params = {"node_id":node_id, "embedding":embedding})
 
+def add_embeddings_tr(session, node_name, embedding):
+    """
+    将嵌入向量添加到Neo4j节点中
+    Args:
+        session: Neo4j会话对象
+        node_name: 节点名称
+        embedding: 嵌入向量
+    """
+    query = "MATCH (n) WHERE n.name = $node_name SET n.embedding = $embedding"
+    session.run(query, node_name=node_name, embedding=embedding)
+
 def add_nodes_emb(n4j):
     """
     为数据库中的所有节点添加嵌入向量
@@ -90,6 +102,42 @@ def add_ge_emb(graph_element):
         node.properties['embedding'] = emb
     return graph_element
 
+def construct_kg(construct, extraction_result, gid=None, chunk_id=None):
+    myurl = construct['url']
+    myusername = construct['username']
+    mypassword = construct['password']
+    print(f"Construct KG in your {construct['database']} now...")
+    cypher_statements = generate_cypher_statements(extraction_result, gid, chunk_id)
+    execute_cypher_statements(uri=myurl, user=myusername, password=mypassword, cypher_statements=cypher_statements)
+
+
+def add_nodes_emb_tr(session, gid):
+    """
+    为数据库中的所有节点添加嵌入向量
+    Args:
+        session: Neo4j会话对象
+    """
+    query = "MATCH (n {gid: $gid}) RETURN n.name AS name"
+    result = session.run(query, {'gid': gid})
+    nodes = [record for record in result]
+
+    for node in nodes:
+        if node.get('name'):
+            embedding = get_embedding(node['name'])
+            if embedding:
+                add_embeddings_tr(session, node['name'], embedding)
+
+def add_all_embeddings(construct, gid):
+    myurl = construct['url']
+    myusername = construct['username']
+    mypassword = construct['password']
+    driver = GraphDatabase.driver(
+        myurl, auth=(myusername, mypassword)
+    )
+    with driver.session() as session:
+        add_nodes_emb_tr(session, gid)
+    driver.close()
+
 def add_gid(graph_element, gid):
     """
     为图元素中的所有节点和关系添加组ID
@@ -105,31 +153,34 @@ def add_gid(graph_element, gid):
         rel.properties['gid'] = gid
     return graph_element
 
-def add_content(graph_element, content):
-    """
-    为图元素中的所有节点添加内容
-    Args:
-        graph_element: 图元素对象
-        content: 内容列表
-    Returns:
-        object: 更新后的图元素对象
-    """
-    for node in graph_element.nodes:
-        node.properties['content'] = content
-    return graph_element
+    
+def add_chunk(n4j, gid, chunk_id, content):
 
-def add_section(graph_element, section):
+    creat_sum_query = """
+        CREATE (s:chunk {chunk_id: $chunk_id, content: $content, gid: $gid})
+        RETURN s
+        """
+    s = n4j.query(creat_sum_query, {'chunk_id': chunk_id, 'content': content, 'gid': gid})
+    return s
+
+def add_section(n4j, gid, section, chunk_id):
     """
-    为图元素中的所有节点添加章节
+    为所有属性gid=gid，chunk_id=chunk_id的节点添加section属性
     Args:
-        graph_element: 图元素对象
-        section: 章节列表
+        n4j: Neo4j数据库连接对象
+        gid: 组ID
+        section: 章节内容
+        chunk_id: chunk的ID
     Returns:
-        object: 更新后的图元素对象
+        object: 更新后的节点
     """
-    for node in graph_element.nodes:
-        node.properties['section'] = section
-    return graph_element
+    creat_sum_query = """
+        MATCH (s:chunk {gid: $gid, chunk_id: $chunk_id})
+        SET s.section = $section
+        RETURN s
+        """
+    s = n4j.query(creat_sum_query, {'section': section, 'gid': gid, 'chunk_id': chunk_id})
+    return s
     
 
 def add_sum(n4j, content, gid):
@@ -158,9 +209,9 @@ def add_sum(n4j, content, gid):
     n4j.query(link_sum_query, {'gid': gid})
     return s
 
-def add_doc_sum(n4j, title, abstract, keyword, gid):
+def add_meta_sum(n4j, title, abstract, keyword, gid):
     """
-    add_doc_sum(self.n4j, title, abstract, keyword, gid)
+    add_meta_sum(self.n4j, title, abstract, keyword, gid)
     为文档创建摘要节点并建立关系
     Args:
         n4j: Neo4j数据库连接对象
@@ -172,18 +223,28 @@ def add_doc_sum(n4j, title, abstract, keyword, gid):
         object: 创建的摘要节点
     """
     creat_sum_query = """
-        CREATE (s:Doc {title: $title, abstract: $abstract, keyword: $keyword, gid: $gid})
+        CREATE (s:Meta {title: $title, abstract: $abstract, keyword: $keyword, gid: $gid})
         RETURN s
         """
     s = n4j.query(creat_sum_query, {'title': title, 'abstract': abstract, 'keyword': keyword, 'gid': gid})
 
     link_sum_query = """
-        MATCH (s:Doc {gid: $gid}), (n)
+        MATCH (s:Meta {gid: $gid}), (n)
         WHERE n.gid = s.gid AND n:Summary
         CREATE (s)-[:basic_information]->(n)
         RETURN s, n
         """
     n4j.query(link_sum_query, {'gid': gid})
+
+    # 所有chunk节点与Meta节点建立original_text relationship
+    original_text_query = """
+    MATCH (s:chunk {gid: $gid}), (n)
+    WHERE n.gid = s.gid AND n:Meta
+    CREATE (s)-[:original_text]->(n)
+    RETURN s, n
+    """
+    n4j.query(original_text_query, {'gid': gid})   
+    
     return s
     
 
@@ -378,7 +439,7 @@ def merge_similar_nodes(n4j, gid):
         merge_query = """
             WITH 0.5 AS threshold
             MATCH (n), (m)
-            WHERE NOT n:Summary AND NOT m:Summary AND n.gid = m.gid AND n.gid = $gid AND n<>m AND apoc.coll.sort(labels(n)) = apoc.coll.sort(labels(m))
+            WHERE NOT n:Summary AND NOT m:Summary AND NOT n:chunk AND NOT m:chunk AND n.gid = m.gid AND n.gid = $gid AND n<>m AND apoc.coll.sort(labels(n)) = apoc.coll.sort(labels(m))
             WITH n, m,
                 gds.similarity.cosine(n.embedding, m.embedding) AS similarity
             WHERE similarity > threshold
