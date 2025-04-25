@@ -1,3 +1,4 @@
+import chunk
 import json
 import re
 from neo4j import GraphDatabase
@@ -21,14 +22,14 @@ def sanitize_string(input_str, max_length=255):
     return input_str
 
 
-def generate_cypher_statements(data, gid=None):
+def generate_cypher_statements(data, gid=None, chunk_id=None):
     """
     Generates Cypher query statements based on the provided JSON data.
     """
     cypher_statements = []
     parsed_data = json.loads(data)
 
-    def create_statement(triple, gid=None):
+    def create_statement(triple, gid=None, chunk_id=None):
         head = triple.get("head")
         head_type = triple.get("head_type")
         relation = triple.get("relation")
@@ -46,34 +47,34 @@ def generate_cypher_statements(data, gid=None):
         statement = ""
         if head:
             if head_type_safe:
-                statement += f'MERGE (a:{head_type_safe} {{name: "{head}", gid: "{gid}"}}) '
+                statement += f'MERGE (a:{head_type_safe} {{name: "{head}", gid: "{gid}", chunk_id:"{chunk_id}"}}) '
             else:
-                statement += f'MERGE (a:UNTYPED {{name: "{head}", gid: "{gid}"}}) '
+                statement += f'MERGE (a:UNTYPED {{name: "{head}", gid: "{gid}", chunk_id:"{chunk_id}"}}) '
         if tail:
             if tail_type_safe:
-                statement += f'MERGE (b:{tail_type_safe} {{name: "{tail}", gid: "{gid}"}}) '
+                statement += f'MERGE (b:{tail_type_safe} {{name: "{tail}", gid: "{gid}", chunk_id:"{chunk_id}"}}) '
             else:
-                statement += f'MERGE (b:UNTYPED {{name: "{tail}", gid: "{gid}"}}) '
+                statement += f'MERGE (b:UNTYPED {{name: "{tail}", gid: "{gid}", chunk_id:"{chunk_id}"}}) '
         if relation:
             if head and tail: # Only create relation if head and tail exist.
                 if relation_type_safe:
-                    statement += f'MERGE (a)-[:{relation_type_safe} {{name: "{relation}", gid: "{gid}"}}]->(b);'
+                    statement += f'MERGE (a)-[:{relation_type_safe} {{name: "{relation}", gid: "{gid}", chunk_id:"{chunk_id}"}}]->(b);'
                 else:
-                    statement += f'MERGE (a)-[:UNTYPED {{name: "{relation}", gid: "{gid}"}}]->(b);'
+                    statement += f'MERGE (a)-[:UNTYPED {{name: "{relation}", gid: "{gid}", chunk_id:"{chunk_id}"}}]->(b);'
             else:
                 statement += ';' if statement != "" else ''
         else:
             if relation_type_safe: # if relation is not provided, create relation by `relation_type`.
-                statement += f'MERGE (a)-[:{relation_type_safe} {{name: "{relation_type_safe}", gid: "{gid}"}}]->(b);'
+                statement += f'MERGE (a)-[:{relation_type_safe} {{name: "{relation_type_safe}", gid: "{gid}", chunk_id:"{chunk_id}"}}]->(b);'
             else:
                 statement += ';' if statement != "" else ''
         return statement
 
     if "triple_list" in parsed_data:
         for triple in parsed_data["triple_list"]:
-            cypher_statements.append(create_statement(triple, gid))
+            cypher_statements.append(create_statement(triple, gid, chunk_id))
     else:
-        cypher_statements.append(create_statement(parsed_data, gid))
+        cypher_statements.append(create_statement(parsed_data, gid, chunk_id))
 
     return cypher_statements
 
