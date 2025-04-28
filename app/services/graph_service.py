@@ -39,6 +39,7 @@ class GraphService:
         self.pipeline = Pipeline(self.model)
         self.extraction_config = config['extraction']
         self.construct_config = config['construct']
+        self.target_gid = "92a31f57-2d5e-4cda-bcc4-ca5c483cde04"
     
     def create_graph(self, file_path, grained_chunk=True, ingraphmerge=True):
         """创建知识图谱
@@ -106,7 +107,10 @@ class GraphService:
     
 
     def build_docs_graph(self, file_path, grained_chunk=True, ingraphmerge=True):
-        """创建知识图谱
+        """创建知识图谱,针对于论文数据
+        Todo：
+            如果是报告，txt数据，根据提示词生成直接生成对应的Json数据
+            如果没有title，abstract，keyword，直接生成
         
         Args:
             json_content: JSON格式的文本内容
@@ -138,18 +142,8 @@ class GraphService:
             try:
                 para = " ".join([x for x in chunk['propositions']])
 
-                frontend_res = self.pipeline.get_extract_result(
-                    task=self.extraction_config['task'], 
-                    instruction=self.extraction_config['instruction'], 
-                    text=para, 
-                    output_schema=self.extraction_config['output_schema'], 
-                    constraint=self.extraction_config['constraint'], 
-                    truth=self.extraction_config['truth'], 
-                    mode=self.extraction_config['mode'], 
-                    update_case=self.extraction_config['update_case'], 
-                    show_trajectory=self.extraction_config['show_trajectory'],
-                    construct=self.construct_config, 
-                )
+                # 调用新方法获取提取结果
+                frontend_res = self.get_extraction_result(para)
 
                 # 添加组ID
                 # graph_elements = add_gid(graph_elements, gid)
@@ -167,7 +161,7 @@ class GraphService:
                 # 添加chunk节点
                 add_chunk(self.n4j, gid, chunk['chunk_id'], chunk['content'])
 
-                # 添加sub
+                # 为chunk添加section属性
                 add_section(self.n4j, gid, chunk['chunk_id'], chunk['section_title'])
 
                 
@@ -180,17 +174,20 @@ class GraphService:
         # 合并相似节点
         if ingraphmerge:
             merge_similar_nodes(self.n4j, gid)
+
+        # 添加三元组的embedding
+        edges_embedding(self.n4j, gid)
         
         content = " ".join([x['content'] for x in paragraph_data])
         # 生成内容摘要
         add_sum(self.n4j, content, gid)
 
+        sums_embedding(self.n4j, gid)
+
         # 添加文档元数据节点并与summary以及所有chunk节点建立关系
         add_meta_sum(self.n4j, title, abstract, keyword, gid)
-        
-        # 获取节点和关系数量
-        # node_count = self._get_node_count(gid)
-        # relationship_count = self._get_relationship_count(gid)
+
+        self.create_reference_links(gid, self.target_gid)
         
         return {
             "gid": gid,
@@ -220,6 +217,68 @@ class GraphService:
     def _get_node_count(self, gid):
         """获取指定gid的节点数量"""
         query = "MATCH (n) WHERE n.gid = $gid RETURN count(n) as count"
+        result = self.n4j.query(query, {"gid": gid})
+        return result[0]["count"] if result else 0
+    
+    def get_extraction_result(self, text):
+        """
+        获取文本的提取结果
+        
+        Args:
+            text: 待提取的文本内容
+            
+        Returns:
+            dict: 提取结果
+        """
+        return self.pipeline.get_extract_result(
+            task=self.extraction_config['task'], 
+            instruction=self.extraction_config['instruction'], 
+            text=text, 
+            output_schema=self.extraction_config['output_schema'], 
+            constraint=self.extraction_config['constraint'], 
+            truth=self.extraction_config['truth'], 
+            mode=self.extraction_config['mode'], 
+            update_case=self.extraction_config['update_case'], 
+            show_trajectory=self.extraction_config['show_trajectory'],
+            construct=self.construct_config, 
+        )
+    def delete_graph_by_gid(self, gid):
+        """
+        删除指定gid的所有节点和关系
+        
+        Args:
+            gid: 要删除的图的组ID
+            
+        Returns:
+            dict: 包含删除结果的字典
+        """
+        query = "MATCH (n) WHERE n.gid = $gid DETACH DELETE n"
+        result = self.n4j.query(query, {"gid": gid})
+        return {
+            "message": f"成功删除GID为{gid}的图",
+            "result": result
+        }
+    
+    def clean_all_graphs(self, exclude_gid="92a31f57-2d5e-4cda-bcc4-ca5c483cde04"):
+        """
+        删除除了指定gid外的所有图
+        
+        Args:
+            exclude_gid: 要排除的图的组ID，默认为医学词典图谱ID
+            
+        Returns:
+            dict: 包含删除结果的字典
+        """
+        query = f"MATCH (n) WHERE n.gid <> $exclude_gid DETACH DELETE n"
+        result = self.n4j.query(query, {"exclude_gid": exclude_gid})
+        return {
+            "message": f"成功清理所有图（保留GID为{exclude_gid}的图）",
+            "result": result
+        }
+    
+    def _get_relationship_count(self, gid):
+        """获取指定gid的关系数量"""
+        query = "MATCH ()-[r]-() WHERE r.gid = $gid RETURN count(r) as count"
         result = self.n4j.query(query, {"gid": gid})
         return result[0]["count"] if result else 0
     
