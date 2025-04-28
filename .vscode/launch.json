@@ -5,6 +5,7 @@
     "version": "0.2.0",
     "configurations": [
 
+
         {"name":"Python Debugger: Current File with Arguments","type":"debugpy","request":"launch","program":"${file}","console":"integratedTerminal","args":"${command:pickArgs}"},
         {
             "name": "Python Debugger: Current File with Arguments",
@@ -18,16 +19,16 @@
             "name": "构建医学图谱",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/run.py",
+            "program": "${workspaceFolder}/app/src/run.py",
             "console": "integratedTerminal",
             "args": [
-                "-dataset", "diabetes",
-                "-data_path", "./txt/Medical_Guidelines/test1", 
+                "-dataset", "test",
+                "-data_path", "/Users/hanhenry99/jianpei/medgraphragJP/data/dataset_json/medical_guidelines/test/report_0.txt", 
                 "-grained_chunk",
                 "-ingraphmerge",
                 "-construct_graph",
                 "-trinity",
-                "-trinity_gid1","61bd762a-2aa7-4de2-9f07-83415f104d67",
+                "-trinity_gid1","92a31f57-2d5e-4cda-bcc4-ca5c483cde04",
             ],
             "justMyCode": false
         },
@@ -35,11 +36,9 @@
             "name": "检索输出回答",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/run.py",
+            "program": "${workspaceFolder}/app/src/run.py",
             "console": "integratedTerminal",
             "args": [
-                "-dataset", "mimic_ex",
-                "-data_path", "./dataset_cn/mimic_ex",
                 "-inference",
             ]
         }
