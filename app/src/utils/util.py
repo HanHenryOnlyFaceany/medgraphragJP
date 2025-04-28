@@ -1,3 +1,4 @@
+from textwrap import indent
 from openai import OpenAI
 import os
 from neo4j import GraphDatabase
@@ -24,6 +25,20 @@ Please answer the question using insights supported by provided graph-based data
 """
 sys_prompt_two = """
 Modify the response to the question using the provided references. Include precise citations relevant to your answer. You may use multiple citations simultaneously, denoting each with the reference index number. For example, cite the first and third documents as [1][3]. If the references do not pertain to the response, simply provide a concise answer to the original question.
+"""
+
+"""
+系统提示词，用于生成基于reference的图数据的医疗信息回答并用于根据参考信息修改和完善回答
+"""
+quick_sys_prompt_one = """
+请基于提供的医学图谱数据回答问题，并利用引用信息增强回答的准确性。在回答中，请精确引用相关文献，可同时使用多个引用，使用引用编号标注（例如：[1][3]表示引用第一篇和第三篇文献,对文献进行去重，即多个三元组来自同一个文献及引用一个文献）。如果提供的引用与问题无关，请直接提供简洁的回答。确保回答专业、准确且易于理解。
+"""
+
+"""
+系统提示词，用于根据医学字典的参考信息修改和完善回答
+"""
+quick_sys_prompt_two = """
+请根据提供的医学字典参考信息，修改和完善您的回答。确保使用标准医学术语，并在必要时引用医学字典中的定义。如果医学字典中的信息与您之前的回答有冲突，请以医学字典为准。保持回答的专业性和准确性，同时确保内容对非专业人士也易于理解。
 """
 
 # Add your own OpenAI API key
@@ -165,7 +180,7 @@ def add_chunk(n4j, gid, chunk_id, content):
     s = n4j.query(creat_sum_query, {'chunk_id': chunk_id, 'content': content, 'gid': gid})
     return s
 
-def add_section(n4j, gid, section, chunk_id):
+def add_section(n4j, gid, chunk_id, section):
     """
     为所有属性gid=gid，chunk_id=chunk_id的节点添加section属性
     Args:
@@ -320,7 +335,6 @@ def get_response(n4j, gid, query):
         n4j: Neo4j数据库连接对象
         gid: 组ID
         query: 查询问题
-        content: 可选的医疗索引内容
     Returns:
         str: 生成的回答
     """
@@ -334,6 +348,75 @@ def get_response(n4j, gid, query):
     user_two = "the question is: " + query + "the last response of it is:" + res + "the references are: " + "".join(linkcont)
     res = call_llm(sys_prompt_two, user_two)
     return res
+
+def get_top_k_response(n4j, gids, query, query_embeddings, k):
+    """
+    根据查询生成综合回答
+    Args:
+        n4j: Neo4j数据库连接对象
+        gids: 一组ID（每个gid代表一片文献）
+        query: 查询问题
+    Returns:
+        str: 生成的回答
+    """
+
+    cont_doc = []
+    reference_triples = []
+    meta_docs = []
+    for query_embedding in query_embeddings:
+        
+        doc, meta_doc, refs = get_top_k_triples(n4j, gids, query_embedding, k)
+        meta_docs += meta_doc
+        cont_doc.extend(doc)
+        reference_triples.extend(refs)
+    # cont_doc to str
+    cont_doc_str = "".join(cont_doc)
+    # reference_triples to str
+    reference_triples_str = "".join(reference_triples)
+    user_one = "the question is: " + query + "the references are: " + cont_doc_str
+    res = call_llm(quick_sys_prompt_one, user_one)
+    user_two = "the question is: " + query + "the last response of it is:" + res + "the document references the content of the medical dictionary are: " + reference_triples_str
+    res = call_llm(quick_sys_prompt_two, user_two)
+
+    return res,meta_docs,reference_triples
+
+"""
+    根据科室限定子图
+"""
+def get_department_top_k_response(n4j, department, query, query_embeddings, k):
+    """
+    根据查询生成综合回答
+    Args:
+        n4j: Neo4j数据库连接对象
+        gids: 一组ID（每个gid代表一片文献）
+        query: 查询问题
+    Returns:
+        str: 生成的回答
+    """
+
+    cont_doc = []
+    reference_triples = []
+    meta_docs = []
+
+    """
+      Todo:修改为多线程并行
+    """
+    for query_embedding in query_embeddings:
+        
+        doc, meta_doc, refs = get_department_top_k_triples(n4j, department, query_embedding, k)
+        meta_docs += meta_doc
+        cont_doc.extend(doc)
+        reference_triples.extend(refs)
+    # cont_doc to str
+    cont_doc_str = "".join(cont_doc)
+    # reference_triples to str
+    reference_triples_str = "".join(reference_triples)
+    user_one = "the question is: " + query + "the references are: " + cont_doc_str
+    res = call_llm(quick_sys_prompt_one, user_one)
+    user_two = "the question is: " + query + "the last response of it is:" + res + "the document references the content of the medical dictionary are: " + reference_triples_str
+    res = call_llm(quick_sys_prompt_two, user_two)
+
+    return res,meta_docs,reference_triples
 
 def link_context(n4j, gid):
     """
@@ -399,8 +482,218 @@ def ret_context(n4j, gid):
     """
     res = n4j.query(ret_query, {'gid': gid})
     for r in res:
-        cont.append(r['NodeId1'] + r['relType'] + r['NodeId2'])
+        node1 = r.get('NodeId1') or ""
+        rel = r.get('relType') or ""
+        node2 = r.get('NodeId2') or ""
+        cont.append(node1 + rel + node2)
     return cont
+
+# 假设已经有Neo4j连接对象n4j
+def get_top_k_triples(n4j, gids, query_embedding, top_k=10):
+    """
+    获取与问题三元组最相关的文档三元组，并返回相关节点和引用关系
+    
+    Args:
+        n4j: Neo4j数据库连接对象
+        gids: 文档ID列表
+        query_embedding: 问题三元组的embedding向量
+        top_k: 返回结果数量
+        
+    Returns:
+        dict: 包含三元组、节点和引用关系的字典
+    """
+    # 1. 获取相关三元组
+    cont_doc = []
+    meta_doc = []
+    query = """
+    // 匹配满足条件的边和相关节点
+    MATCH (s)-[r]->(o)
+    WHERE r.gid IN $gids AND r.embedding IS NOT NULL
+
+    // 计算余弦相似度并排序
+    WITH s, r, o, 
+         gds.similarity.cosine(r.embedding, $query_embedding) AS similarity
+    ORDER BY similarity DESC
+    LIMIT $top_k
+
+    // 查询Meta节点的标题
+    MATCH (meta:Meta)
+    WHERE meta.gid = r.gid
+
+    MATCH (c:chunk)
+    WHERE c.chunk_id = s.chunk_id AND c.gid = r.gid
+
+    // 返回结果
+    RETURN s.name AS subject, 
+           s.chunk_id AS subject_chunk_id,
+           r.name AS relation, 
+           o.name AS object, 
+           r.gid AS document_id,
+           c.section AS section,
+           c.content AS chunk,
+           meta.title AS document_title,
+           similarity AS score
+    """
+    
+    params = {
+        "gids": gids,
+        "query_embedding": query_embedding,
+        "top_k": top_k
+    }
+    triples_result = n4j.query(query, params)
+    # 处理查询结果，将三元组信息添加到cont_doc列表中
+    ind = 0
+    for triple in triples_result:
+        ind += 1
+        cont_doc.append(f"The Triple reference:{str(ind)}: (Document: {triple['document_title']}, {triple['subject']} {triple['relation']} {triple['object']}, Score: {triple['score']})")
+        """
+        结构化存储每个信息
+        """
+        
+        meta_doc.append({
+            "document_title": triple['document_title'],
+            "chunk": triple['chunk'],
+            "section": triple['section'],
+            "triple": triple['subject'] + triple['relation'] + triple['object'],
+            "score": triple['score']
+        })
+
+    import json
+    print("meta_doc:\n" + json.dumps(meta_doc, ensure_ascii=False, indent=2))
+    print("\n")
+
+
+    # 2. 收集所有相关的gid和节点ID
+    related_gids = set()
+    related_node_ids = set()
+    for triple in triples_result:
+        related_gids.add(triple['document_id'])
+        related_node_ids.add(triple['subject'])
+        related_node_ids.add(triple['object'])
+
+    # 3. 获取所有相关节点的引用关系三元组
+    reference_triples = []
+    for node_id in related_node_ids:
+        reference_query = """
+        // 查找与指定节点有REFERENCE关系的所有节点
+        MATCH (n)-[r:REFERENCE]-(m)
+        WHERE n.name = $node_id
+        RETURN n.name AS subject, 
+               m.name AS object,
+               type(r) AS relation
+        """
+        ref_results = n4j.query(reference_query, {'node_id': node_id})
+        ind = 0
+        for r in ref_results:
+            ind += 1
+            reference_triples.append("Reference " + str(ind) + ": " + r["subject"] + "has the reference that" + r['object'] + r['relation'])
+    # 将return语句移到循环外部
+    print("reference_triples:"+"\n".join(reference_triples))
+
+    return cont_doc, meta_doc, reference_triples
+
+def get_department_top_k_triples(n4j, department, query_embedding, top_k=10):
+    """
+    获取与问题三元组最相关的文档三元组，并返回相关节点和引用关系
+    
+    Args:
+        n4j: Neo4j数据库连接对象
+        gids: 文档ID列表
+        query_embedding: 问题三元组的embedding向量
+        top_k: 返回结果数量
+        
+    Returns:
+        dict: 包含三元组、节点和引用关系的字典
+    """
+    # 1. 获取相关三元组
+    cont_doc = []
+    meta_doc = []
+    query = """
+    // 匹配满足条件的边和相关节点
+    MATCH (s)-[r]->(o)
+    WHERE r.department = $department AND r.embedding IS NOT NULL
+
+    // 计算余弦相似度并排序
+    WITH s, r, o, 
+         gds.similarity.cosine(r.embedding, $query_embedding) AS similarity
+    ORDER BY similarity DESC
+    LIMIT $top_k
+
+    // 查询Meta节点的标题
+    MATCH (meta:Meta)
+    WHERE meta.gid = r.gid
+
+    MATCH (c:chunk)
+    WHERE c.chunk_id = s.chunk_id AND c.gid = r.gid
+
+    // 返回结果
+    RETURN s.name AS subject, 
+           s.chunk_id AS subject_chunk_id,
+           r.name AS relation, 
+           o.name AS object, 
+           r.gid AS document_id,
+           c.section AS section,
+           c.content AS chunk,
+           meta.title AS document_title,
+           similarity AS score
+    """
+    
+    params = {
+        "department": department,
+        "query_embedding": query_embedding,
+        "top_k": top_k
+    }
+    triples_result = n4j.query(query, params)
+    # 处理查询结果，将三元组信息添加到cont_doc列表中
+    ind = 0
+    for triple in triples_result:
+        ind += 1
+        cont_doc.append(f"The Triple reference:{str(ind)}: (Document: {triple['document_title']}, {triple['subject']} {triple['relation']} {triple['object']}, Score: {triple['score']})")
+        """
+        结构化存储每个信息
+        """
+        
+        meta_doc.append({
+            "document_title": triple['document_title'],
+            "chunk": triple['chunk'],
+            "section": triple['section'],
+            "triple": triple['subject'] + triple['relation'] + triple['object'],
+            "score": triple['score']
+        })
+
+    import json
+    print("meta_doc:\n" + json.dumps(meta_doc, ensure_ascii=False, indent=2))
+    print("\n")
+
+
+    # 2. 收集所有相关的gid和节点ID
+    related_gids = set()
+    related_node_ids = set()
+    for triple in triples_result:
+        related_gids.add(triple['document_id'])
+        related_node_ids.add(triple['subject'])
+        related_node_ids.add(triple['object'])
+
+    # 3. 获取所有相关节点的引用关系三元组
+    reference_triples = []
+    for node_id in related_node_ids:
+        reference_query = """
+        // 查找与指定节点有REFERENCE关系的所有节点
+        MATCH (n)-[r:REFERENCE]-(m)
+        WHERE n.name = $node_id
+        RETURN n.name AS subject, 
+               m.name AS object,
+               type(r) AS relation
+        """
+        ref_results = n4j.query(reference_query, {'node_id': node_id})
+        ind = 0
+        for r in ref_results:
+            ind += 1
+            reference_triples.append("Reference " + str(ind) + ": " + r["subject"] + "has the reference that" + r['object'] + r['relation'])
+    # 将return语句移到循环外部
+    print("reference_triples:"+"\n".join(reference_triples))
+
+    return cont_doc, meta_doc, reference_triples
 
 def selfsum_context(n4j, gid):
     """
@@ -467,6 +760,81 @@ def merge_similar_nodes(n4j, gid):
         result = n4j.query(merge_query)
     return result
 
+def edges_embedding(n4j, gid):
+    """
+    为gid下的所有边构建的三元组生成embedding，并存储在边的embedding属性中
+    Args:
+        n4j: Neo4j数据库连接对象
+        gid: 组ID
+    Returns:
+        object: 构建embedding的结果
+    """
+    # 1. 查询指定gid下的所有边及其相关节点
+    query = """
+    MATCH (s)-[r]->(o)
+    WHERE r.gid = $gid
+    RETURN id(r) AS rel_id, s.name AS subject, r.name AS relation, o.name AS object
+    """
+    
+    edges = n4j.query(query, {'gid': gid})
+    
+    # 2. 为每条边构建三元组文本并生成embedding
+    update_count = 0
+    for edge in edges:
+        # 构建三元组文本
+        triple_text = f"{edge['subject']} {edge['relation']} {edge['object']}"
+        
+        # 使用get_embedding函数生成embedding
+        embedding = get_embedding(triple_text)
+        
+        # 3. 将embedding存储到边的属性中
+        update_query = """
+        MATCH ()-[r]->() 
+        WHERE id(r) = $rel_id
+        SET r.embedding = $embedding
+        """
+        
+        n4j.query(update_query, {'rel_id': edge['rel_id'], 'embedding': embedding})
+        update_count += 1
+    
+    return {
+        'status': 'success',
+        'message': f'成功为 {update_count} 条边生成并存储embedding',
+        'gid': gid
+    }
+
+def sums_embedding(n4j, gid):
+    """
+    为gid下的Summary节点生成embedding，并存储在节点的embedding属性中
+    Args:
+        n4j: Neo4j数据库连接对象
+        gid: 组ID
+    Returns:
+        object: 构建embedding的结果
+    """
+    # 1. 查询指定gid下的所有Summary节点及其相关节点
+    query = """
+    MATCH (s:Summary)   
+    WHERE s.gid = $gid
+    RETURN s.id AS summary_id, s.content AS summary_content
+    """
+
+    summaries = n4j.query(query, {'gid': gid})
+    
+    sum_embedding = get_embedding(summaries[0]['summary_content'])
+
+    query = """
+    MATCH (s:Summary)
+    WHERE s.gid = $gid
+    SET s.embedding = $embedding
+    """
+    n4j.query(query, {'gid': gid, 'embedding': sum_embedding})
+    return {
+        'status':'success',
+    }
+
+    # 1. 查询指定gid下的所有节点
+
 def ref_link(n4j, gid1, gid2):
     """
     建立两个图之间的引用关系(余弦相似度)
@@ -494,7 +862,7 @@ def ref_link(n4j, gid1, gid2):
         UNWIND GraphB AS m
 
         // Set the threshold for cosine similarity
-        WITH n, m, 0.9 AS threshold
+        WITH n, m, 0.95 AS threshold
 
         // Compute cosine similarity and apply the threshold
         WHERE apoc.coll.sort(labels(n)) = apoc.coll.sort(labels(m)) AND n <> m
@@ -506,8 +874,8 @@ def ref_link(n4j, gid1, gid2):
         MERGE (m)-[:REFERENCE]->(n)
 
         // Return results
-        RETURN n, m
-"""
+        RETURN n, m     
+"""         
     result = n4j.query(trinity_query, {'gid1': gid1, 'gid2': gid2})
     print(f"建立了 {len(result)} 个引用关系")
     return result
