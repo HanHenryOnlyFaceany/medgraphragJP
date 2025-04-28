@@ -54,10 +54,32 @@ async def precise_qa(request: QueryRequest):
 async def quick_qa(request: QueryRequest):
     """快速查询知识图谱（多个文档）"""
     try:
+
         n4j = get_neo4j_connection()
         query_service = QueryService(n4j)
         # 生成查询嵌入向量
         query_embeddings = query_service.get_query_embedding(request.query)
+        # 不再需要传递 gid 参数，因为在 query_service.py 中会通过 seq_ret 获取
+
+        result, meta_doc, reference_triples = query_service.quick_query(request.query, query_embeddings, k=5)
+        return QueryResponse(**{
+            "answer": result,
+            "meta_doc": meta_doc,
+            "reference_triples": reference_triples
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"查询知识图谱失败: {str(e)}")
+
+@router.post("/graph/de-qucik-qa", response_model=QueryResponse)
+async def de_quick_qa(request: QueryRequest):
+    """快速查询知识图谱（多个文档）"""
+    try:
+
+        n4j = get_neo4j_connection()
+        query_service = QueryService(n4j)
+        sentences = split_sentences(request.query)
+        # 生成查询嵌入向量
+        query_embeddings = query_service.get_querys_embedding(sentences)
         # 不再需要传递 gid 参数，因为在 query_service.py 中会通过 seq_ret 获取
 
         result, meta_doc, reference_triples = query_service.quick_query(request.query, query_embeddings, k=5)
